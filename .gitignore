@@ -1,0 +1,49 @@
+# Python
+# Bytecode cache
+__pycache__/
+**/__pycache__/
+
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.manifest
+*.spec
+
+# Virtual environment
+venv/
+env/
+
+# VSCode settings (optional)
+.vscode/
+
+# Environment variables
+.env
+
+# SQLite DB (optional: include if DB is for dev only)
+db.sqlite3
+
+# Django migrations (optional to ignore, but useful in early dev)
+**/migrations/*.py
+!**/migrations/__init__.py
+**/migrations/__pycache__/
+
+# Logs
+*.log
+
+# Mac & Windows junk
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Byte-compiled Jupyter
+*.nbconvert.ipynb
+
+# Pycharm / JetBrains
+.idea/
