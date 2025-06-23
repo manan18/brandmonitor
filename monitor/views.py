@@ -12,12 +12,196 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+import threading
+import time
+import uuid
+import queue
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+# Global request queue and job tracker
+request_queue = queue.Queue()
+job_tracker = {}
+job_lock = threading.Lock()
+worker_busy = False
+worker_busy_lock = threading.Lock()
+
+
+# Rate limiter class for Gemini
+class GeminiRateLimiter:
+    def __init__(self, rpm_limit=10, tpm_limit=950000):
+        self.rpm_limit = rpm_limit
+        self.tpm_limit = tpm_limit
+        self.request_timestamps = []
+        self.token_count = 0
+        self.lock = threading.Lock()
+        self.last_reset = time.time()
+
+    def can_process(self, estimated_tokens=100):
+        now = time.time()
+        with self.lock:
+            # Reset counters every minute
+            if now - self.last_reset >= 60:
+                self.request_timestamps = []
+                self.token_count = 0
+                self.last_reset = now
+                
+            # Check RPM limit
+            if len(self.request_timestamps) >= self.rpm_limit:
+                return False
+                
+            # Check TPM limit
+            if self.token_count + estimated_tokens >= self.tpm_limit:
+                return False
+                
+            return True
+
+    def add_request(self, estimated_tokens=100):
+        now = time.time()
+        with self.lock:
+            if now - self.last_reset >= 60:
+                self.request_timestamps = []
+                self.token_count = 0
+                self.last_reset = now
+                
+            self.request_timestamps.append(now)
+            self.token_count += estimated_tokens
+
+    def next_available_time(self):
+        now = time.time()
+        with self.lock:
+            reset_in = 60 - (now - self.last_reset)
+            
+            if self.request_timestamps:
+                oldest_request = self.request_timestamps[0]
+                rpm_wait = max(0, 60 - (now - oldest_request))
+            else:
+                rpm_wait = 0
+                
+            if self.token_count >= self.tpm_limit:
+                tpm_wait = reset_in
+            else:
+                tpm_wait = 0
+                
+            return max(reset_in, rpm_wait, tpm_wait)
+
+# Initialize rate limiter with 90% of Gemini Flash limits
+GEMINI_LIMITER = GeminiRateLimiter(rpm_limit=10, tpm_limit=950000)
+
+def process_prompt(prompt):
+    """Process a single prompt with both models in parallel"""
+    with ThreadPoolExecutor(max_workers=2) as inner_executor:
+        gemini_future = inner_executor.submit(query_gemini, prompt, GEMINI_API_KEY)
+        openai_future = inner_executor.submit(query_openai, prompt, OPENAI_MODEL, OPENAI_API_KEY)
+        return gemini_future.result(), openai_future.result()
+
+
+def worker_thread():
+    """Background worker that processes queued requests"""
+    global worker_busy
+    while True:
+        # Get next job from queue
+        job_id, brand, prompts = request_queue.get()
+        logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
+        
+        try:
+            # Update job status to processing
+            with job_lock:
+                job_tracker[job_id] = {
+                    "status": "processing",
+                    "started_at": time.time(),
+                    "progress": 0,
+                    "total_prompts": len(prompts)
+                }
+            
+            # Process all prompts in parallel
+            openAi_responses = []
+            gemini_responses = []
+            total_prompts = len(prompts)
+            completed = 0
+            
+            with ThreadPoolExecutor(max_workers=15) as outer_executor:
+                # Create futures for all prompts
+                futures = {
+                    outer_executor.submit(process_prompt, prompt): idx
+                    for idx, prompt in enumerate(prompts)
+                }
+                
+                # Process completed futures as they come in
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        g_response, o_response = future.result()
+                        openAi_responses.append({"prompt": prompts[idx], "response": o_response})
+                        gemini_responses.append({"prompt": prompts[idx], "response": g_response})
+                    except Exception as e:
+                        error_msg = f"Error: {str(e)}"
+                        openAi_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        gemini_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        logger.error(f"Error processing prompt: {str(e)}")
+                    
+                    # Update progress
+                    completed += 1
+                    with job_lock:
+                        if job_id in job_tracker:
+                            job_tracker[job_id]["progress"] = (completed / total_prompts) * 100
+            
+            # Calculate results
+            openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
+            gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
+            
+            # Mark job as complete
+            with job_lock:
+                job_tracker[job_id] = {
+                    "status": "completed",
+                    "completed_at": time.time(),
+                    "result": {
+                        "brand": brand,
+                        "total_prompts": total_prompts,
+                        "openAi_mention_rate": openAi_mention_rate,
+                        "gemini_mention_rate": gemini_mention_rate
+                    }
+                }
+                
+        except Exception as e:
+            logger.error(f"Job {job_id} failed: {str(e)}")
+            with job_lock:
+                job_tracker[job_id] = {
+                    "status": "failed",
+                    "completed_at": time.time(),
+                    "error": str(e)
+                }
+        
+        finally:
+            with worker_busy_lock:
+                worker_busy = False
+            request_queue.task_done()
+            logger.info(f"Finished job {job_id}")
+
+# Start worker thread on first request
+worker = None
+def start_worker():
+    global worker
+    if worker is None or not worker.is_alive():
+        worker = threading.Thread(target=worker_thread, daemon=True)
+        worker.start()
+        logger.info("Started worker thread")
+
+
 
 @api_view(['POST'])
 def run_query(request):
@@ -108,96 +292,124 @@ def generate_prompts(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-
-# @api_view(['POST'])
-# def brand_mention_score(request):
-#     brand = request.data.get("brand")
-#     prompts = request.data.get("prompts", [])
-
-#     if not brand or not prompts:
-#         return Response({"error": "brand and prompts are required"}, status=400)
-
-#     openAi_responses = []
-#     gemini_responses = []
-
-#     for prompt in prompts:
-#         g_response = query_gemini(prompt, GEMINI_API_KEY)
-#         o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
-#         print(g_response+"\n"+"\n")
-#         print(o_response)
-#         openAi_responses.append({
-#             "prompt": prompt,
-#             "response": o_response,
-#         })
-#         gemini_responses.append({
-#             "prompt": prompt,
-#             "response": g_response,
-#         })
-
-#     openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
-#     gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
-
-#     return Response({
-#         "brand": brand,
-#         "total_prompts": len(prompts),
-#         "openAi_mention_rate": openAi_mention_rate,
-#         "gemini_mention_rate": gemini_mention_rate,
-#         # "responses": responses  # Optional: remove if you don’t want to return them
-#     })
+@api_view(['POST'])
+def job_status(request):
+    job_id = request.data.get("job_id")
+    with job_lock:
+        job = job_tracker.get(job_id)
+    
+    if not job:
+        return Response({"error": "Job not found"}, status=404)
+    
+    response_data = {
+        "job_id": job_id,
+        "status": job["status"],
+        "created_at": job.get("created_at"),
+    }
+    
+    if job["status"] == "queued":
+        response_data["position_in_queue"] = job.get("position_in_queue", 0)
+        # Recalculate estimated wait time
+        if "position_in_queue" in job:
+            wait_seconds = GEMINI_LIMITER.next_available_time() + (job["position_in_queue"] * 5)
+            response_data["estimated_wait_seconds"] = wait_seconds
+    
+    elif job["status"] == "processing":
+        response_data["started_at"] = job.get("started_at")
+        response_data["progress"] = f"{job.get('progress', 0):.1f}%"
+        response_data["processed"] = int(job.get('progress', 0) * job.get("total_prompts", 0) / 100)
+        response_data["total_prompts"] = job.get("total_prompts", 0)
+    
+    elif job["status"] == "completed":
+        response_data["completed_at"] = job.get("completed_at")
+        response_data["data"] = job.get("result", {})
+    
+    elif job["status"] == "failed":
+        response_data["completed_at"] = job.get("completed_at")
+        response_data["error"] = job.get("error", "Unknown error")
+    
+    return Response(response_data)
 
 @api_view(['POST'])
 def brand_mention_score(request):
+    start_worker()  # Ensure worker is running
+    
     brand = request.data.get("brand")
     prompts = request.data.get("prompts", [])
     if not brand or not prompts:
         return Response({"error": "brand and prompts are required"}, status=400)
     
-    # Optimized processing using parallel execution
-    def process_prompt(prompt):
-        """Process a single prompt with both models in parallel"""
-        with ThreadPoolExecutor(max_workers=2) as inner_executor:
-            gemini_future = inner_executor.submit(query_gemini, prompt, GEMINI_API_KEY)
-            openai_future = inner_executor.submit(query_openai, prompt, OPENAI_MODEL, OPENAI_API_KEY)
-            
-            g_response = gemini_future.result()
-            o_response = openai_future.result()
-            
-            
-            return {
-                "gemini": {"prompt": prompt, "response": g_response},
-                "openai": {"prompt": prompt, "response": o_response}
-            }
+    # Estimate tokens for the entire request
+    estimated_tokens = sum(len(prompt) // 4 + 150 for prompt in prompts)
     
-    # Process all prompts in parallel
-    openAi_responses = []
-    gemini_responses = []
-    
-    with ThreadPoolExecutor(max_workers=20) as outer_executor:  # Adjust based on your API rate limits
-        future_to_prompt = {
-            outer_executor.submit(process_prompt, prompt): prompt
-            for prompt in prompts
-        }
+    # Check if we can process immediately
+    if GEMINI_LIMITER.can_process(estimated_tokens) and not worker_busy and request_queue.empty():
+        try:
+            # Record the request
+            GEMINI_LIMITER.add_request(estimated_tokens)
+            
+            # Process immediately with parallel execution
+            openAi_responses = []
+            gemini_responses = []
+            
+            with ThreadPoolExecutor(max_workers=15) as outer_executor:
+                futures = {
+                    outer_executor.submit(process_prompt, prompt): prompt
+                    for prompt in prompts
+                }
+                
+                for future in as_completed(futures):
+                    try:
+                        g_response, o_response = future.result()
+                        openAi_responses.append({"prompt": futures[future], "response": o_response})
+                        gemini_responses.append({"prompt": futures[future], "response": g_response})
+                    except Exception as e:
+                        error_resp = {"prompt": futures[future], "response": f"Error: {str(e)}"}
+                        openAi_responses.append(error_resp)
+                        gemini_responses.append(error_resp)
+            
+            # Calculate results
+            openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
+            gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
+            
+            return Response({
+                "status": "completed",
+                "brand": brand,
+                "total_prompts": len(prompts),
+                "openAi_mention_rate": openAi_mention_rate,
+                "gemini_mention_rate": gemini_mention_rate,
+            })
         
-        for future in as_completed(future_to_prompt):
-            try:
-                result = future.result()
-                gemini_responses.append(result["gemini"])
-                openAi_responses.append(result["openai"])
-            except Exception as e:
-                # Handle individual prompt failures
-                prompt = future_to_prompt[future]
-                error_resp = {"prompt": prompt, "response": f"Error: {str(e)}"}
-                gemini_responses.append(error_resp)
-                openAi_responses.append(error_resp)
-                print(f"Error processing prompt '{prompt[:50]}...': {str(e)}")
-
-    # Calculate mention rates
-    openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
-    gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
+        except Exception as e:
+            return Response({"status": "failed", "error": str(e)}, status=500)
     
-    return Response({
-        "brand": brand,
-        "total_prompts": len(prompts),
-        "openAi_mention_rate": openAi_mention_rate,
-        "gemini_mention_rate": gemini_mention_rate,
-    })
+    else:
+        # Create job and add to queue
+        job_id = str(uuid.uuid4())
+        
+        with worker_busy_lock:
+            is_busy = worker_busy
+            queue_size = request_queue.qsize()
+            
+        with job_lock:
+            position = queue_size + (1 if is_busy else 0)
+            job_tracker[job_id] = {
+                "status": "queued",
+                "created_at": time.time(),
+                "brand": brand,
+                "prompt_count": len(prompts),
+                "position_in_queue": position
+            }
+        
+        request_queue.put((job_id, brand, prompts))
+        
+        # Calculate wait time estimate (5 seconds per queued job + rate limit wait)
+        wait_seconds = GEMINI_LIMITER.next_available_time() + (position * 5)
+        
+        return Response({
+            "status": "queued",
+            "message": "Server is busy, request queued",
+            "job_id": job_id,
+            "position_in_queue": position,
+            "estimated_wait_seconds": wait_seconds
+        }, status=202)  # 202 Accepted
