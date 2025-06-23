@@ -7,6 +7,11 @@ from .sentiment import get_sentiment
 from .theme_extraction import extract_themes
 import os
 from dotenv import load_dotenv
+from .utils import calculate_mention_rate
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
 
 load_dotenv()
 
@@ -102,3 +107,97 @@ def generate_prompts(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+# @api_view(['POST'])
+# def brand_mention_score(request):
+#     brand = request.data.get("brand")
+#     prompts = request.data.get("prompts", [])
+
+#     if not brand or not prompts:
+#         return Response({"error": "brand and prompts are required"}, status=400)
+
+#     openAi_responses = []
+#     gemini_responses = []
+
+#     for prompt in prompts:
+#         g_response = query_gemini(prompt, GEMINI_API_KEY)
+#         o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
+#         print(g_response+"\n"+"\n")
+#         print(o_response)
+#         openAi_responses.append({
+#             "prompt": prompt,
+#             "response": o_response,
+#         })
+#         gemini_responses.append({
+#             "prompt": prompt,
+#             "response": g_response,
+#         })
+
+#     openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
+#     gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
+
+#     return Response({
+#         "brand": brand,
+#         "total_prompts": len(prompts),
+#         "openAi_mention_rate": openAi_mention_rate,
+#         "gemini_mention_rate": gemini_mention_rate,
+#         # "responses": responses  # Optional: remove if you don’t want to return them
+#     })
+
+@api_view(['POST'])
+def brand_mention_score(request):
+    brand = request.data.get("brand")
+    prompts = request.data.get("prompts", [])
+    if not brand or not prompts:
+        return Response({"error": "brand and prompts are required"}, status=400)
+    
+    # Optimized processing using parallel execution
+    def process_prompt(prompt):
+        """Process a single prompt with both models in parallel"""
+        with ThreadPoolExecutor(max_workers=2) as inner_executor:
+            gemini_future = inner_executor.submit(query_gemini, prompt, GEMINI_API_KEY)
+            openai_future = inner_executor.submit(query_openai, prompt, OPENAI_MODEL, OPENAI_API_KEY)
+            
+            g_response = gemini_future.result()
+            o_response = openai_future.result()
+            
+            
+            return {
+                "gemini": {"prompt": prompt, "response": g_response},
+                "openai": {"prompt": prompt, "response": o_response}
+            }
+    
+    # Process all prompts in parallel
+    openAi_responses = []
+    gemini_responses = []
+    
+    with ThreadPoolExecutor(max_workers=20) as outer_executor:  # Adjust based on your API rate limits
+        future_to_prompt = {
+            outer_executor.submit(process_prompt, prompt): prompt
+            for prompt in prompts
+        }
+        
+        for future in as_completed(future_to_prompt):
+            try:
+                result = future.result()
+                gemini_responses.append(result["gemini"])
+                openAi_responses.append(result["openai"])
+            except Exception as e:
+                # Handle individual prompt failures
+                prompt = future_to_prompt[future]
+                error_resp = {"prompt": prompt, "response": f"Error: {str(e)}"}
+                gemini_responses.append(error_resp)
+                openAi_responses.append(error_resp)
+                print(f"Error processing prompt '{prompt[:50]}...': {str(e)}")
+
+    # Calculate mention rates
+    openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
+    gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
+    
+    return Response({
+        "brand": brand,
+        "total_prompts": len(prompts),
+        "openAi_mention_rate": openAi_mention_rate,
+        "gemini_mention_rate": gemini_mention_rate,
+    })
