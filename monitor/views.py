@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-from .llm_query import query_openai, query_gemini
+from .llm_query import query_openai, query_gemini, query_openrouter
 from .sentiment import get_sentiment
 from .theme_extraction import extract_themes
 import os
@@ -21,13 +21,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
-
+MODEL_IDS = {
+        "gemini": "google/gemini-2.5-flash",
+        "openai": "openai/o4-mini",
+        "perplexity": "perplexity/sonar-pro",
+        "deepseek": "deepseek/deepseek-r1-0528",
+        "claude": "anthropic/claude-3.5-haiku-20241022:beta"
+    }
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -39,7 +44,6 @@ job_tracker = {}
 job_lock = threading.Lock()
 worker_busy = False
 worker_busy_lock = threading.Lock()
-
 
 # Rate limiter class for Gemini
 class GeminiRateLimiter:
@@ -104,10 +108,15 @@ GEMINI_LIMITER = GeminiRateLimiter(rpm_limit=10, tpm_limit=950000)
 
 def process_prompt(prompt):
     """Process a single prompt with both models in parallel"""
-    with ThreadPoolExecutor(max_workers=2) as inner_executor:
-        gemini_future = inner_executor.submit(query_gemini, prompt, GEMINI_API_KEY)
-        openai_future = inner_executor.submit(query_openai, prompt, OPENAI_MODEL, OPENAI_API_KEY)
-        return gemini_future.result(), openai_future.result()
+    with ThreadPoolExecutor(max_workers=5) as inner_executor:
+        # gemini_future = inner_executor.submit(query_gemini, prompt, GEMINI_API_KEY)
+        # openai_future = inner_executor.submit(query_openai, prompt, OPENAI_MODEL, OPENAI_API_KEY)
+        gemini_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["gemini"])
+        openai_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["openai"])
+        perplexity_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["perplexity"])
+        deepseek_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["deepseek"])
+        claude_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["claude"])
+        return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
 
 
 def worker_thread():
@@ -131,6 +140,9 @@ def worker_thread():
             # Process all prompts in parallel
             openAi_responses = []
             gemini_responses = []
+            perplexity_responses = []
+            deepseek_responses = []
+            claude_responses = []
             total_prompts = len(prompts)
             completed = 0
             
@@ -145,13 +157,19 @@ def worker_thread():
                 for future in as_completed(futures):
                     idx = futures[future]
                     try:
-                        g_response, o_response = future.result()
+                        g_response, o_response, p_response, d_future, c_future = future.result()
                         openAi_responses.append({"prompt": prompts[idx], "response": o_response})
                         gemini_responses.append({"prompt": prompts[idx], "response": g_response})
+                        perplexity_responses.append({"prompt": prompts[idx], "response": p_response})
+                        deepseek_responses.append({"prompt": prompts[idx], "response": d_future})
+                        claude_responses.append({"prompt": prompts[idx], "response": c_future})
                     except Exception as e:
                         error_msg = f"Error: {str(e)}"
                         openAi_responses.append({"prompt": prompts[idx], "response": error_msg})
                         gemini_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        perplexity_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        deepseek_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        claude_responses.append({"prompt": prompts[idx], "response": error_msg})
                         logger.error(f"Error processing prompt: {str(e)}")
                     
                     # Update progress
@@ -163,7 +181,9 @@ def worker_thread():
             # Calculate results
             openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
             gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
-            
+            perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
+            deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
+            claude_mention_rate = calculate_mention_rate(claude_responses, brand)
             # Mark job as complete
             with job_lock:
                 job_tracker[job_id] = {
@@ -173,7 +193,10 @@ def worker_thread():
                         "brand": brand,
                         "total_prompts": total_prompts,
                         "openAi_mention_rate": openAi_mention_rate,
-                        "gemini_mention_rate": gemini_mention_rate
+                        "gemini_mention_rate": gemini_mention_rate,
+                        "perplexity_mention_rate": perplexity_mention_rate,
+                        "deepseek_mention_rate": deepseek_mention_rate,
+                        "claude_mention_rate": claude_mention_rate,
                     }
                 }
                 
@@ -275,15 +298,15 @@ def generate_prompts(request):
 
     prompt =prompt_template.format(brand=brand, category=category, core_features=core_features, primary_use_case=primary_use_case, target_audience=target_audience, differentiators=differentiators or "", integrations=integrations or "", deployment=deployment or "", geographic_locations=geographic_locations or "", keywords=keywords or "")
 
-    print(f"Generated Prompt: {prompt}")
+    # print(f"Generated Prompt: {prompt}")
 
     try:
-        g_response = query_gemini(prompt, GEMINI_API_KEY)
+        # g_response = query_gemini(prompt, GEMINI_API_KEY)
         o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
-        g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
+        # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
         o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
         results = {
-            "gemini": g_response_array,
+            # "gemini": g_response_array,
             "openai": o_response_array
         }
 
@@ -351,7 +374,9 @@ def brand_mention_score(request):
             # Process immediately with parallel execution
             openAi_responses = []
             gemini_responses = []
-            
+            perplexity_responses = []
+            deepseek_responses = []
+            claude_responses = []
             with ThreadPoolExecutor(max_workers=15) as outer_executor:
                 futures = {
                     outer_executor.submit(process_prompt, prompt): prompt
@@ -360,24 +385,40 @@ def brand_mention_score(request):
                 
                 for future in as_completed(futures):
                     try:
-                        g_response, o_response = future.result()
+                        g_response, o_response, p_response, d_response, c_response = future.result()
                         openAi_responses.append({"prompt": futures[future], "response": o_response})
                         gemini_responses.append({"prompt": futures[future], "response": g_response})
+                        perplexity_responses.append({"prompt": futures[future], "response": p_response})
+                        deepseek_responses.append({"prompt": futures[future], "response": d_response})
+                        claude_responses.append({"prompt": futures[future], "response": c_response})
                     except Exception as e:
                         error_resp = {"prompt": futures[future], "response": f"Error: {str(e)}"}
                         openAi_responses.append(error_resp)
                         gemini_responses.append(error_resp)
+                        perplexity_responses.append(error_resp)
+                        deepseek_responses.append(error_resp)
+                        claude_responses.append(error_resp)
             
             # Calculate results
             openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
             gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
-            
+            perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
+            deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
+            claude_mention_rate = calculate_mention_rate(claude_responses, brand)
+            print("openai responses \n", openAi_responses)
+            print("gemini responses \n", gemini_responses)
+            print("perplexity responses \n", perplexity_responses)
+            print("deepseek responses \n ", deepseek_responses)
+            print("claude responses \n", claude_responses)
             return Response({
                 "status": "completed",
                 "brand": brand,
                 "total_prompts": len(prompts),
                 "openAi_mention_rate": openAi_mention_rate,
                 "gemini_mention_rate": gemini_mention_rate,
+                "perplexity_mention_rate": perplexity_mention_rate,
+                "deepseek_mention_rate": deepseek_mention_rate,
+                "claude_mention_rate": claude_mention_rate,
             })
         
         except Exception as e:
