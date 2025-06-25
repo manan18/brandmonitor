@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -o errexit
 
-# Apply database migrations
-python manage.py migrate
+# Verify spaCy model installation
+if ! python -c "import spacy; spacy.load('en_core_web_sm')" &>/dev/null; then
+    echo "❌ Critical Error: spaCy model failed to load!"
+    exit 1
+fi
 
-# Start Gunicorn
+python manage.py migrate
 gunicorn brandmonitor.wsgi:application --bind 0.0.0.0:$PORT
