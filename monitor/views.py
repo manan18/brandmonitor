@@ -405,11 +405,7 @@ def brand_mention_score(request):
             perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
             deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
-            print("openai responses \n", openAi_responses)
-            print("gemini responses \n", gemini_responses)
-            print("perplexity responses \n", perplexity_responses)
-            print("deepseek responses \n ", deepseek_responses)
-            print("claude responses \n", claude_responses)
+
             return Response({
                 "status": "completed",
                 "brand": brand,
