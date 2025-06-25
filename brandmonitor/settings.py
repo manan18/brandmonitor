@@ -11,6 +11,9 @@ DEBUG = config("DEBUG", default=True, cast=bool)
 
 ALLOWED_HOSTS = ["*"]  # Update for production
 
+# Add Render to CSRF trusted origins
+CSRF_TRUSTED_ORIGINS = ['https://*.onrender.com']
+
 # --- INSTALLED APPS ---
 INSTALLED_APPS = [
     'django.contrib.admin',
