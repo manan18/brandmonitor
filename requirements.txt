@@ -13,3 +13,5 @@ numpy==1.22.4
 google-generativeai==0.5.4
 pandas==2.2.2
 django-cors-headers
+blis==0.7.9
+gunicorn
