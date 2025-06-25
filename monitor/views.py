@@ -269,7 +269,7 @@ def generate_prompts(request):
         f"{'My deployment and pricing models are ' + deployment + ' respectively. ' if deployment else ''}"
         f"{'My geographic and/or language focuses on ' + geographic_locations + '. ' if geographic_locations else ''}"
         f"{'Some common keywords which people use to describe my tool/product are ' + keywords + '. ' if keywords else ''}"
-        "Use the information provided above to generate a list of 100 prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
+        "Use the information provided above to generate a list of 10 prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
         "(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
     )
 
