@@ -450,3 +450,9 @@ def brand_mention_score(request):
             "position_in_queue": position,
             "estimated_wait_seconds": wait_seconds
         }, status=202)  # 202 Accepted
+        
+        
+@api_view(['GET'])
+def health_check(request):
+    port = os.getenv("PORT", "8000")
+    return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
