@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -o errexit
 
-# Run database migrations
+# Apply database migrations
 python manage.py migrate
 
 # Start Gunicorn
