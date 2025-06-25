@@ -9,9 +9,10 @@ PyYAML==6.0.2
 spacy==3.6.1
 vaderSentiment==3.3.2
 vaderSentiment==3.3.2
-numpy==1.22.4
+numpy==1.23.5 --prefer-binary
 google-generativeai==0.5.4
 pandas==2.2.2
 django-cors-headers
-blis==0.7.9
 gunicorn
+blis==0.7.9 --prefer-binary
+cython>=0.29 --prefer-binary
