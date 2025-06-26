@@ -8,4 +8,4 @@ if ! python -c "import spacy; spacy.load('en_core_web_sm')" &>/dev/null; then
 fi
 
 python manage.py migrate
-gunicorn brandmonitor.wsgi:application --bind 0.0.0.0:$PORT
+gunicorn brandmonitor.wsgi:application --bind 0.0.0.0:$PORT --timeout 6000
