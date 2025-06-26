@@ -284,6 +284,7 @@ def generate_prompts(request):
     if not brand or not core_features or not website or not primary_use_case or not category or not target_audience:
         return Response({"error": "brand and prompt are required"}, status=status.HTTP_400_BAD_REQUEST)
     
+    NUMBER_OF_PROMPTS = int(os.getenv("NUMBER_OF_PROMPTS", "5"))
     prompt_template = (
         f"I have a brand/product/application known as {brand}, which falls under the category of {category}. "
         f"It has a website at {website}. "
@@ -294,8 +295,8 @@ def generate_prompts(request):
         f"{'My deployment and pricing models are ' + deployment + ' respectively. ' if deployment else ''}"
         f"{'My geographic and/or language focuses on ' + geographic_locations + '. ' if geographic_locations else ''}"
         f"{'Some common keywords which people use to describe my tool/product are ' + keywords + '. ' if keywords else ''}"
-        "Use the information provided above to generate a list of 5 prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
-        "(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
+        f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
+        f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
     )
 
     prompt =prompt_template.format(brand=brand, category=category, core_features=core_features, primary_use_case=primary_use_case, target_audience=target_audience, differentiators=differentiators or "", integrations=integrations or "", deployment=deployment or "", geographic_locations=geographic_locations or "", keywords=keywords or "")
