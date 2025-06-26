@@ -270,6 +270,7 @@ def run_query(request):
 @api_view(['POST'])
 def generate_prompts(request):
     brand = request.data.get('brand')
+    website = request.data.get('website')
     category = request.data.get('category')
     core_features= request.data.get('core_features')
     primary_use_case = request.data.get('primary_use_case')
@@ -280,11 +281,12 @@ def generate_prompts(request):
     geographic_locations = request.data.get('geographic_locations')
     keywords = request.data.get('keywords')
 
-    if not brand or not core_features or not primary_use_case or not category or not target_audience or not category:
+    if not brand or not core_features or not website or not primary_use_case or not category or not target_audience:
         return Response({"error": "brand and prompt are required"}, status=status.HTTP_400_BAD_REQUEST)
     
     prompt_template = (
         f"I have a brand/product/application known as {brand}, which falls under the category of {category}. "
+        f"It has a website at {website}. "
         f"It's core features are {core_features}, and the primary use case is {primary_use_case}. "
         f"My target audience is {target_audience}. "
         f"{'My key differentiating points are ' + differentiators + '. ' if differentiators else ''}"
