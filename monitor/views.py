@@ -271,6 +271,7 @@ def run_query(request):
 def generate_prompts(request):
     brand = request.data.get('brand')
     website = request.data.get('website')
+    custom_comments = request.data.get('custom_comments', "")
     # category = request.data.get('category')
     # core_features= request.data.get('core_features')
     # primary_use_case = request.data.get('primary_use_case')
@@ -304,15 +305,16 @@ def generate_prompts(request):
     prompt_template = (
         f"I have a brand/product/application known as {brand}."
         f"It has a website at {website}. "
+        f"{('Some custom comments about my platform are: ' + custom_comments + '. ') if custom_comments else ''}"
         f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
         f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
     )
 
     # prompt =prompt_template.format(brand=brand, category=category, core_features=core_features, primary_use_case=primary_use_case, target_audience=target_audience, differentiators=differentiators or "", integrations=integrations or "", deployment=deployment or "", geographic_locations=geographic_locations or "", keywords=keywords or "")
 
-    prompt =prompt_template.format(brand=brand, website=website)
+    prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
 
-    # print(f"Generated Prompt: {prompt}")
+    print(f"Generated Prompt: {prompt}")
 
     try:
         # g_response = query_gemini(prompt, GEMINI_API_KEY)
