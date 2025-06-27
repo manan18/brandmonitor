@@ -271,35 +271,46 @@ def run_query(request):
 def generate_prompts(request):
     brand = request.data.get('brand')
     website = request.data.get('website')
-    category = request.data.get('category')
-    core_features= request.data.get('core_features')
-    primary_use_case = request.data.get('primary_use_case')
-    target_audience = request.data.get('target_audience')
-    differentiators = request.data.get('differentiators')
-    integrations = request.data.get('integrations')
-    deployment = request.data.get('deployment')
-    geographic_locations = request.data.get('geographic_locations')
-    keywords = request.data.get('keywords')
+    # category = request.data.get('category')
+    # core_features= request.data.get('core_features')
+    # primary_use_case = request.data.get('primary_use_case')
+    # target_audience = request.data.get('target_audience')
+    # differentiators = request.data.get('differentiators')
+    # integrations = request.data.get('integrations')
+    # deployment = request.data.get('deployment')
+    # geographic_locations = request.data.get('geographic_locations')
+    # keywords = request.data.get('keywords')
 
-    if not brand or not core_features or not website or not primary_use_case or not category or not target_audience:
-        return Response({"error": "brand and prompt are required"}, status=status.HTTP_400_BAD_REQUEST)
+    # if not brand or not core_features or not website or not primary_use_case or not category or not target_audience:
+    #     return Response({"error": "brand and prompt are required"}, status=status.HTTP_400_BAD_REQUEST)
+    if not brand or not website:
+        return Response({"error": "Brand and Website are required"}, status=status.HTTP_400_BAD_REQUEST)
     
     NUMBER_OF_PROMPTS = int(os.getenv("NUMBER_OF_PROMPTS", "5"))
+    # prompt_template = (
+    #     f"I have a brand/product/application known as {brand}, which falls under the category of {category}. "
+    #     f"It has a website at {website}. "
+    #     f"It's core features are {core_features}, and the primary use case is {primary_use_case}. "
+    #     f"My target audience is {target_audience}. "
+    #     f"{'My key differentiating points are ' + differentiators + '. ' if differentiators else ''}"
+    #     f"{'Some other platforms/technologies my tool connects with are: ' + integrations + '. ' if integrations else ''}"
+    #     f"{'My deployment and pricing models are ' + deployment + ' respectively. ' if deployment else ''}"
+    #     f"{'My geographic and/or language focuses on ' + geographic_locations + '. ' if geographic_locations else ''}"
+    #     f"{'Some common keywords which people use to describe my tool/product are ' + keywords + '. ' if keywords else ''}"
+    #     f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
+    #     f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
+    # )
+
     prompt_template = (
-        f"I have a brand/product/application known as {brand}, which falls under the category of {category}. "
+        f"I have a brand/product/application known as {brand}."
         f"It has a website at {website}. "
-        f"It's core features are {core_features}, and the primary use case is {primary_use_case}. "
-        f"My target audience is {target_audience}. "
-        f"{'My key differentiating points are ' + differentiators + '. ' if differentiators else ''}"
-        f"{'Some other platforms/technologies my tool connects with are: ' + integrations + '. ' if integrations else ''}"
-        f"{'My deployment and pricing models are ' + deployment + ' respectively. ' if deployment else ''}"
-        f"{'My geographic and/or language focuses on ' + geographic_locations + '. ' if geographic_locations else ''}"
-        f"{'Some common keywords which people use to describe my tool/product are ' + keywords + '. ' if keywords else ''}"
         f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
         f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
     )
 
-    prompt =prompt_template.format(brand=brand, category=category, core_features=core_features, primary_use_case=primary_use_case, target_audience=target_audience, differentiators=differentiators or "", integrations=integrations or "", deployment=deployment or "", geographic_locations=geographic_locations or "", keywords=keywords or "")
+    # prompt =prompt_template.format(brand=brand, category=category, core_features=core_features, primary_use_case=primary_use_case, target_audience=target_audience, differentiators=differentiators or "", integrations=integrations or "", deployment=deployment or "", geographic_locations=geographic_locations or "", keywords=keywords or "")
+
+    prompt =prompt_template.format(brand=brand, website=website)
 
     # print(f"Generated Prompt: {prompt}")
 
