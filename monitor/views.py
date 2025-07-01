@@ -45,77 +45,50 @@ job_lock = threading.Lock()
 worker_busy = False
 worker_busy_lock = threading.Lock()
 
-# Rate limiter class for Gemini
-class GeminiRateLimiter:
-    def __init__(self, rpm_limit=10, tpm_limit=950000):
-        self.rpm_limit = rpm_limit
-        self.tpm_limit = tpm_limit
+
+class RateLimiter:
+    def __init__(self, max_requests: int, interval_s: float):
+        self.max_requests = max_requests
+        self.interval = interval_s
         self.request_timestamps = []
-        self.token_count = 0
         self.lock = threading.Lock()
-        self.last_reset = time.time()
 
-    def can_process(self, estimated_tokens=100):
-        now = time.time()
-        with self.lock:
-            # Reset counters every minute
-            if now - self.last_reset >= 60:
-                self.request_timestamps = []
-                self.token_count = 0
-                self.last_reset = now
-                
-            # Check RPM limit
-            if len(self.request_timestamps) >= self.rpm_limit:
-                return False
-                
-            # Check TPM limit
-            if self.token_count + estimated_tokens >= self.tpm_limit:
-                return False
-                
-            return True
+    def _prune(self):
+        cutoff = time.time() - self.interval
+        while self.request_timestamps and self.request_timestamps[0] < cutoff:
+            self.request_timestamps.pop(0)
 
-    def add_request(self, estimated_tokens=100):
-        now = time.time()
-        with self.lock:
-            if now - self.last_reset >= 60:
-                self.request_timestamps = []
-                self.token_count = 0
-                self.last_reset = now
-                
-            self.request_timestamps.append(now)
-            self.token_count += estimated_tokens
-
-    def next_available_time(self):
-        now = time.time()
-        with self.lock:
-            reset_in = 60 - (now - self.last_reset)
+    def wait_for_slot(self):
+        while True:
+            with self.lock:
+                self._prune()
+                if len(self.request_timestamps) < self.max_requests:
+                    self.request_timestamps.append(time.time())
+                    return
+            time.sleep(0.05)
             
-            if self.request_timestamps:
-                oldest_request = self.request_timestamps[0]
-                rpm_wait = max(0, 60 - (now - oldest_request))
-            else:
-                rpm_wait = 0
-                
-            if self.token_count >= self.tpm_limit:
-                tpm_wait = reset_in
-            else:
-                tpm_wait = 0
-                
-            return max(reset_in, rpm_wait, tpm_wait)
+    def can_request(self) -> bool:
+        with self.lock:
+            self._prune()
+            return len(self.request_timestamps) < self.max_requests
 
-# Initialize rate limiter with 90% of Gemini Flash limits
-GEMINI_LIMITER = GeminiRateLimiter(rpm_limit=10, tpm_limit=950000)
+
+# instantiate with your OpenRouter limits
+RATE_LIMITER = RateLimiter(max_requests=200, interval_s=10.0)
+
+def query_openrouter_limited(prompt: str, model_id: str) -> str:
+    RATE_LIMITER.wait_for_slot()
+    return query_openrouter(prompt, model_id)
 
 def process_prompt(prompt):
     """Process a single prompt with both models in parallel"""
     with ThreadPoolExecutor(max_workers=5) as inner_executor:
-        # gemini_future = inner_executor.submit(query_gemini, prompt, GEMINI_API_KEY)
-        # openai_future = inner_executor.submit(query_openai, prompt, OPENAI_MODEL, OPENAI_API_KEY)
-        gemini_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["gemini"])
-        openai_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["openai"])
-        perplexity_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["perplexity"])
-        deepseek_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["deepseek"])
-        claude_future = inner_executor.submit(query_openrouter, prompt, MODEL_IDS["claude"])
+      
+        gemini_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["gemini"])
+        openai_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["openai"])
+        perplexity_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["perplexity"])
+        deepseek_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["deepseek"])
+        claude_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["claude"])
         return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
 
 
@@ -272,36 +245,13 @@ def generate_prompts(request):
     brand = request.data.get('brand')
     website = request.data.get('website')
     custom_comments = request.data.get('custom_comments', "")
-    # category = request.data.get('category')
-    # core_features= request.data.get('core_features')
-    # primary_use_case = request.data.get('primary_use_case')
-    # target_audience = request.data.get('target_audience')
-    # differentiators = request.data.get('differentiators')
-    # integrations = request.data.get('integrations')
-    # deployment = request.data.get('deployment')
-    # geographic_locations = request.data.get('geographic_locations')
-    # keywords = request.data.get('keywords')
-
-    # if not brand or not core_features or not website or not primary_use_case or not category or not target_audience:
-    #     return Response({"error": "brand and prompt are required"}, status=status.HTTP_400_BAD_REQUEST)
+   
     if not brand or not website:
         return Response({"error": "Brand and Website are required"}, status=status.HTTP_400_BAD_REQUEST)
     
     NUMBER_OF_PROMPTS = int(os.getenv("NUMBER_OF_PROMPTS", "5"))
-    # prompt_template = (
-    #     f"I have a brand/product/application known as {brand}, which falls under the category of {category}. "
-    #     f"It has a website at {website}. "
-    #     f"It's core features are {core_features}, and the primary use case is {primary_use_case}. "
-    #     f"My target audience is {target_audience}. "
-    #     f"{'My key differentiating points are ' + differentiators + '. ' if differentiators else ''}"
-    #     f"{'Some other platforms/technologies my tool connects with are: ' + integrations + '. ' if integrations else ''}"
-    #     f"{'My deployment and pricing models are ' + deployment + ' respectively. ' if deployment else ''}"
-    #     f"{'My geographic and/or language focuses on ' + geographic_locations + '. ' if geographic_locations else ''}"
-    #     f"{'Some common keywords which people use to describe my tool/product are ' + keywords + '. ' if keywords else ''}"
-    #     f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
-    #     f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
-    # )
-
+    
+    
     prompt_template = (
         f"I have a brand/product/application known as {brand}."
         f"It has a website at {website}. "
@@ -310,8 +260,7 @@ def generate_prompts(request):
         f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
     )
 
-    # prompt =prompt_template.format(brand=brand, category=category, core_features=core_features, primary_use_case=primary_use_case, target_audience=target_audience, differentiators=differentiators or "", integrations=integrations or "", deployment=deployment or "", geographic_locations=geographic_locations or "", keywords=keywords or "")
-
+    
     prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
 
     print(f"Generated Prompt: {prompt}")
@@ -350,7 +299,11 @@ def job_status(request):
         response_data["position_in_queue"] = job.get("position_in_queue", 0)
         # Recalculate estimated wait time
         if "position_in_queue" in job:
-            wait_seconds = GEMINI_LIMITER.next_available_time() + (job["position_in_queue"] * 5)
+            # Estimate wait: next‐slot wait + 5s per job
+            now = time.time()
+            elapsed = now - (RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now)
+            wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
+
             response_data["estimated_wait_seconds"] = wait_seconds
     
     elif job["status"] == "processing":
@@ -382,10 +335,8 @@ def brand_mention_score(request):
     estimated_tokens = sum(len(prompt) // 4 + 150 for prompt in prompts)
     
     # Check if we can process immediately
-    if GEMINI_LIMITER.can_process(estimated_tokens) and not worker_busy and request_queue.empty():
+    if RATE_LIMITER.can_request() and not worker_busy and request_queue.empty():
         try:
-            # Record the request
-            GEMINI_LIMITER.add_request(estimated_tokens)
             
             # Process immediately with parallel execution
             openAi_responses = []

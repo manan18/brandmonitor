@@ -6,23 +6,6 @@ def load_config(path="config.yaml"):
     with open(path, 'r') as f:
         return yaml.safe_load(f)
 
-def query_gemini(prompt, api_key):
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    response = model.generate_content(prompt)
-    return response.text
-
-def query_openai(prompt, model, api_key):
-    client = OpenAI(api_key=api_key)
-
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
-    )
-
-    return response.choices[0].message.content
-
 def query_openrouter(prompt, model_id):
     """Query any model through OpenRouter API"""
     client = OpenAI(
@@ -37,23 +20,56 @@ def query_openrouter(prompt, model_id):
     )
     return response.choices[0].message.content
 
-def run_queries():
-    config = load_config()
-    responses = []
+def print_model_cost(model_id, input_tokens, output_tokens):
+    """Print the estimated cost for the given model and token usage"""
+    pricing = {
+        "google/gemini-2.5-flash": {"input": 0.30 / 1_000_000, "output": 2.50 / 1_000_000},
+        "openai/o4-mini": {"input": 1.10 / 1_000_000, "output": 4.40 / 1_000_000},
+        "perplexity/sonar-pro": {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
+        "deepseek/deepseek-r1-0528": {"input": 0.50 / 1_000_000, "output": 2.15 / 1_000_000},
+        "anthropic/claude-3.5-haiku-20241022:beta": {"input": 0.80 / 1_000_000, "output": 4.00 / 1_000_000},
+    }
 
-    for brand in config["brands"]:
-        for prompt_template in config["prompts"]:
-            if "{competitor}" in prompt_template:
-                for comp in config["competitors"]:
-                    prompt = prompt_template.format(brand=brand, competitor=comp)
-                    result = query_gemini(prompt, config["llms"][0]["api_key"])
-                    result1 = query_openai(prompt, config["llms"][1]["model"], config["llms"][1]["api_key"])
-                    responses.append({"brand": brand, "prompt": prompt, "response": result, "ai": "gemini"})
-                    responses.append({"brand": brand, "prompt": prompt, "response": result1, "ai": "openai"})
-            else:
-                prompt = prompt_template.format(brand=brand)
-                result = query_gemini(prompt, config["llms"][0]["api_key"])
-                result1 = query_openai(prompt, config["llms"][1]["model"], config["llms"][1]["api_key"])
-                responses.append({"brand": brand, "prompt": prompt, "response": result, "ai": "gemini"})
-                responses.append({"brand": brand, "prompt": prompt, "response": result1, "ai": "openai"})
-    return responses
+    model_pricing = pricing.get(model_id)
+    if not model_pricing:
+        print(f"No pricing available for model: {model_id}")
+        return
+
+    input_cost = input_tokens * model_pricing["input"]
+    output_cost = output_tokens * model_pricing["output"]
+    total_cost = input_cost + output_cost
+
+    print(f"Cost: ${total_cost:.6f} (Input: ${input_cost:.6f}, Output: ${output_cost:.6f})")
+
+
+def query_openrouter(prompt, model_id):
+    """Query any model through OpenRouter API"""
+    from openai import OpenAI
+    import os
+
+    client = OpenAI(
+        api_key=os.getenv('OPENROUTER_API_KEY'),
+        base_url="https://openrouter.ai/api/v1"
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=model_id,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+
+        print(f"Model: {model_id}")
+        print(f"Input tokens: {input_tokens}, Output tokens: {output_tokens}")
+
+        # Call the cost display function
+        # print_model_cost(model_id, input_tokens, output_tokens)
+
+        return response.choices[0].message.content
+
+    except Exception as e:
+        print(f"Error in query: {str(e)}")
+        return None
