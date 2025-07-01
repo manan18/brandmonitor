@@ -1,4 +1,6 @@
-Django==5.2.3
+Django==4.2.5
+gunicorn==21.2.0
+spacy==3.6.1
 djangorestframework==3.16.0
 openai==1.88.0
 protobuf<5.0.0,!=3.20.0,!=3.20.1
@@ -9,7 +11,10 @@ PyYAML==6.0.2
 spacy==3.6.1
 vaderSentiment==3.3.2
 vaderSentiment==3.3.2
-numpy==1.22.4
 google-generativeai==0.5.4
 pandas==2.2.2
 django-cors-headers
+numpy==1.23.5 --prefer-binary
+blis==0.7.9 --prefer-binary
+cython>=0.29 --prefer-binary
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.6.0/en_core_web_sm-3.6.0.tar.gz#egg=en_core_web_sm

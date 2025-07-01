@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-from .llm_query import query_openai, query_gemini
+from .llm_query import query_openai, query_gemini, query_openrouter
 from .sentiment import get_sentiment
 from .theme_extraction import extract_themes
 import os
@@ -21,13 +21,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
-
+MODEL_IDS = {
+        "gemini": "google/gemini-2.5-flash",
+        "openai": "openai/o4-mini",
+        "perplexity": "perplexity/sonar-pro",
+        "deepseek": "deepseek/deepseek-r1-0528",
+        "claude": "anthropic/claude-3.5-haiku-20241022:beta"
+    }
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -41,73 +46,50 @@ worker_busy = False
 worker_busy_lock = threading.Lock()
 
 
-# Rate limiter class for Gemini
-class GeminiRateLimiter:
-    def __init__(self, rpm_limit=10, tpm_limit=950000):
-        self.rpm_limit = rpm_limit
-        self.tpm_limit = tpm_limit
+class RateLimiter:
+    def __init__(self, max_requests: int, interval_s: float):
+        self.max_requests = max_requests
+        self.interval = interval_s
         self.request_timestamps = []
-        self.token_count = 0
         self.lock = threading.Lock()
-        self.last_reset = time.time()
 
-    def can_process(self, estimated_tokens=100):
-        now = time.time()
-        with self.lock:
-            # Reset counters every minute
-            if now - self.last_reset >= 60:
-                self.request_timestamps = []
-                self.token_count = 0
-                self.last_reset = now
-                
-            # Check RPM limit
-            if len(self.request_timestamps) >= self.rpm_limit:
-                return False
-                
-            # Check TPM limit
-            if self.token_count + estimated_tokens >= self.tpm_limit:
-                return False
-                
-            return True
+    def _prune(self):
+        cutoff = time.time() - self.interval
+        while self.request_timestamps and self.request_timestamps[0] < cutoff:
+            self.request_timestamps.pop(0)
 
-    def add_request(self, estimated_tokens=100):
-        now = time.time()
-        with self.lock:
-            if now - self.last_reset >= 60:
-                self.request_timestamps = []
-                self.token_count = 0
-                self.last_reset = now
-                
-            self.request_timestamps.append(now)
-            self.token_count += estimated_tokens
-
-    def next_available_time(self):
-        now = time.time()
-        with self.lock:
-            reset_in = 60 - (now - self.last_reset)
+    def wait_for_slot(self):
+        while True:
+            with self.lock:
+                self._prune()
+                if len(self.request_timestamps) < self.max_requests:
+                    self.request_timestamps.append(time.time())
+                    return
+            time.sleep(0.05)
             
-            if self.request_timestamps:
-                oldest_request = self.request_timestamps[0]
-                rpm_wait = max(0, 60 - (now - oldest_request))
-            else:
-                rpm_wait = 0
-                
-            if self.token_count >= self.tpm_limit:
-                tpm_wait = reset_in
-            else:
-                tpm_wait = 0
-                
-            return max(reset_in, rpm_wait, tpm_wait)
+    def can_request(self) -> bool:
+        with self.lock:
+            self._prune()
+            return len(self.request_timestamps) < self.max_requests
 
-# Initialize rate limiter with 90% of Gemini Flash limits
-GEMINI_LIMITER = GeminiRateLimiter(rpm_limit=10, tpm_limit=950000)
+
+# instantiate with your OpenRouter limits
+RATE_LIMITER = RateLimiter(max_requests=200, interval_s=10.0)
+
+def query_openrouter_limited(prompt: str, model_id: str) -> str:
+    RATE_LIMITER.wait_for_slot()
+    return query_openrouter(prompt, model_id)
 
 def process_prompt(prompt):
     """Process a single prompt with both models in parallel"""
-    with ThreadPoolExecutor(max_workers=2) as inner_executor:
-        gemini_future = inner_executor.submit(query_gemini, prompt, GEMINI_API_KEY)
-        openai_future = inner_executor.submit(query_openai, prompt, OPENAI_MODEL, OPENAI_API_KEY)
-        return gemini_future.result(), openai_future.result()
+    with ThreadPoolExecutor(max_workers=5) as inner_executor:
+      
+        gemini_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["gemini"])
+        openai_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["openai"])
+        perplexity_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["perplexity"])
+        deepseek_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["deepseek"])
+        claude_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["claude"])
+        return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
 
 
 def worker_thread():
@@ -131,6 +113,9 @@ def worker_thread():
             # Process all prompts in parallel
             openAi_responses = []
             gemini_responses = []
+            perplexity_responses = []
+            deepseek_responses = []
+            claude_responses = []
             total_prompts = len(prompts)
             completed = 0
             
@@ -145,13 +130,19 @@ def worker_thread():
                 for future in as_completed(futures):
                     idx = futures[future]
                     try:
-                        g_response, o_response = future.result()
+                        g_response, o_response, p_response, d_future, c_future = future.result()
                         openAi_responses.append({"prompt": prompts[idx], "response": o_response})
                         gemini_responses.append({"prompt": prompts[idx], "response": g_response})
+                        perplexity_responses.append({"prompt": prompts[idx], "response": p_response})
+                        deepseek_responses.append({"prompt": prompts[idx], "response": d_future})
+                        claude_responses.append({"prompt": prompts[idx], "response": c_future})
                     except Exception as e:
                         error_msg = f"Error: {str(e)}"
                         openAi_responses.append({"prompt": prompts[idx], "response": error_msg})
                         gemini_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        perplexity_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        deepseek_responses.append({"prompt": prompts[idx], "response": error_msg})
+                        claude_responses.append({"prompt": prompts[idx], "response": error_msg})
                         logger.error(f"Error processing prompt: {str(e)}")
                     
                     # Update progress
@@ -163,7 +154,9 @@ def worker_thread():
             # Calculate results
             openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
             gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
-            
+            perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
+            deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
+            claude_mention_rate = calculate_mention_rate(claude_responses, brand)
             # Mark job as complete
             with job_lock:
                 job_tracker[job_id] = {
@@ -173,7 +166,10 @@ def worker_thread():
                         "brand": brand,
                         "total_prompts": total_prompts,
                         "openAi_mention_rate": openAi_mention_rate,
-                        "gemini_mention_rate": gemini_mention_rate
+                        "gemini_mention_rate": gemini_mention_rate,
+                        "perplexity_mention_rate": perplexity_mention_rate,
+                        "deepseek_mention_rate": deepseek_mention_rate,
+                        "claude_mention_rate": claude_mention_rate,
                     }
                 }
                 
@@ -247,43 +243,35 @@ def run_query(request):
 @api_view(['POST'])
 def generate_prompts(request):
     brand = request.data.get('brand')
-    category = request.data.get('category')
-    core_features= request.data.get('core_features')
-    primary_use_case = request.data.get('primary_use_case')
-    target_audience = request.data.get('target_audience')
-    differentiators = request.data.get('differentiators')
-    integrations = request.data.get('integrations')
-    deployment = request.data.get('deployment')
-    geographic_locations = request.data.get('geographic_locations')
-    keywords = request.data.get('keywords')
-
-    if not brand or not core_features or not primary_use_case or not category or not target_audience or not category:
-        return Response({"error": "brand and prompt are required"}, status=status.HTTP_400_BAD_REQUEST)
+    website = request.data.get('website')
+    custom_comments = request.data.get('custom_comments', "")
+   
+    if not brand or not website:
+        return Response({"error": "Brand and Website are required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    NUMBER_OF_PROMPTS = int(os.getenv("NUMBER_OF_PROMPTS", "5"))
+    
     
     prompt_template = (
-        f"I have a brand/product/application known as {brand}, which falls under the category of {category}. "
-        f"It's core features are {core_features}, and the primary use case is {primary_use_case}. "
-        f"My target audience is {target_audience}. "
-        f"{'My key differentiating points are ' + differentiators + '. ' if differentiators else ''}"
-        f"{'Some other platforms/technologies my tool connects with are: ' + integrations + '. ' if integrations else ''}"
-        f"{'My deployment and pricing models are ' + deployment + ' respectively. ' if deployment else ''}"
-        f"{'My geographic and/or language focuses on ' + geographic_locations + '. ' if geographic_locations else ''}"
-        f"{'Some common keywords which people use to describe my tool/product are ' + keywords + '. ' if keywords else ''}"
-        "Use the information provided above to generate a list of 10 prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
-        "(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
+        f"I have a brand/product/application known as {brand}."
+        f"It has a website at {website}. "
+        f"{('Some custom comments about my platform are: ' + custom_comments + '. ') if custom_comments else ''}"
+        f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
+        f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
     )
 
-    prompt =prompt_template.format(brand=brand, category=category, core_features=core_features, primary_use_case=primary_use_case, target_audience=target_audience, differentiators=differentiators or "", integrations=integrations or "", deployment=deployment or "", geographic_locations=geographic_locations or "", keywords=keywords or "")
+    
+    prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
 
     print(f"Generated Prompt: {prompt}")
 
     try:
-        g_response = query_gemini(prompt, GEMINI_API_KEY)
+        # g_response = query_gemini(prompt, GEMINI_API_KEY)
         o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
-        g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
+        # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
         o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
         results = {
-            "gemini": g_response_array,
+            # "gemini": g_response_array,
             "openai": o_response_array
         }
 
@@ -311,7 +299,11 @@ def job_status(request):
         response_data["position_in_queue"] = job.get("position_in_queue", 0)
         # Recalculate estimated wait time
         if "position_in_queue" in job:
-            wait_seconds = GEMINI_LIMITER.next_available_time() + (job["position_in_queue"] * 5)
+            # Estimate wait: next‐slot wait + 5s per job
+            now = time.time()
+            elapsed = now - (RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now)
+            wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
+
             response_data["estimated_wait_seconds"] = wait_seconds
     
     elif job["status"] == "processing":
@@ -343,15 +335,15 @@ def brand_mention_score(request):
     estimated_tokens = sum(len(prompt) // 4 + 150 for prompt in prompts)
     
     # Check if we can process immediately
-    if GEMINI_LIMITER.can_process(estimated_tokens) and not worker_busy and request_queue.empty():
+    if RATE_LIMITER.can_request() and not worker_busy and request_queue.empty():
         try:
-            # Record the request
-            GEMINI_LIMITER.add_request(estimated_tokens)
             
             # Process immediately with parallel execution
             openAi_responses = []
             gemini_responses = []
-            
+            perplexity_responses = []
+            deepseek_responses = []
+            claude_responses = []
             with ThreadPoolExecutor(max_workers=15) as outer_executor:
                 futures = {
                     outer_executor.submit(process_prompt, prompt): prompt
@@ -360,24 +352,36 @@ def brand_mention_score(request):
                 
                 for future in as_completed(futures):
                     try:
-                        g_response, o_response = future.result()
+                        g_response, o_response, p_response, d_response, c_response = future.result()
                         openAi_responses.append({"prompt": futures[future], "response": o_response})
                         gemini_responses.append({"prompt": futures[future], "response": g_response})
+                        perplexity_responses.append({"prompt": futures[future], "response": p_response})
+                        deepseek_responses.append({"prompt": futures[future], "response": d_response})
+                        claude_responses.append({"prompt": futures[future], "response": c_response})
                     except Exception as e:
                         error_resp = {"prompt": futures[future], "response": f"Error: {str(e)}"}
                         openAi_responses.append(error_resp)
                         gemini_responses.append(error_resp)
+                        perplexity_responses.append(error_resp)
+                        deepseek_responses.append(error_resp)
+                        claude_responses.append(error_resp)
             
             # Calculate results
             openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
             gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
-            
+            perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
+            deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
+            claude_mention_rate = calculate_mention_rate(claude_responses, brand)
+
             return Response({
                 "status": "completed",
                 "brand": brand,
                 "total_prompts": len(prompts),
                 "openAi_mention_rate": openAi_mention_rate,
                 "gemini_mention_rate": gemini_mention_rate,
+                "perplexity_mention_rate": perplexity_mention_rate,
+                "deepseek_mention_rate": deepseek_mention_rate,
+                "claude_mention_rate": claude_mention_rate,
             })
         
         except Exception as e:
@@ -413,3 +417,9 @@ def brand_mention_score(request):
             "position_in_queue": position,
             "estimated_wait_seconds": wait_seconds
         }, status=202)  # 202 Accepted
+        
+        
+@api_view(['GET'])
+def health_check(request):
+    port = os.getenv("PORT", "8000")
+    return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
