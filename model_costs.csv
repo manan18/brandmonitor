@@ -1,0 +1,500 @@
+Timestamp,Model,Input Tokens,Output Tokens,Input Cost ($),Output Cost ($),Total Cost ($),Prompt
+2025-07-02T14:44:52.955070,anthropic/claude-3.5-haiku-20241022:beta,12,129,0.000010,0.000516,0.000526,Quick pizza delivery options nearby
+2025-07-02T14:44:53.109239,anthropic/claude-3.5-haiku-20241022:beta,15,153,0.000012,0.000612,0.000624,Affordable fast pizza delivery in my city
+2025-07-02T14:44:53.173642,perplexity/sonar-pro,8,287,0.000024,0.004305,0.004329,Affordable fast pizza delivery in my city
+2025-07-02T14:44:53.432335,perplexity/sonar-pro,6,229,0.000018,0.003435,0.003453,Pizza delivery companies offering garlic bread
+2025-07-02T14:44:53.876070,perplexity/sonar-pro,7,280,0.000021,0.004200,0.004221,Pizza delivery app with multiple crust options
+2025-07-02T14:44:53.930309,anthropic/claude-3.5-haiku-20241022:beta,12,202,0.000010,0.000808,0.000818,Best value pizza delivery service
+2025-07-02T14:44:53.974299,google/gemini-2.5-flash,7,498,0.000002,0.001245,0.001247,Affordable fast pizza delivery in my city
+2025-07-02T14:44:53.980233,google/gemini-2.5-flash,7,500,0.000002,0.001250,0.001252,Pizza delivery services with late night delivery
+2025-07-02T14:44:54.230645,anthropic/claude-3.5-haiku-20241022:beta,15,214,0.000012,0.000856,0.000868,Where can I order pizza with sides quickly
+2025-07-02T14:44:54.264511,perplexity/sonar-pro,7,343,0.000021,0.005145,0.005166,Pizza delivery platforms offering salad and sides
+2025-07-02T14:44:54.407212,anthropic/claude-3.5-haiku-20241022:beta,14,212,0.000011,0.000848,0.000859,Pizza delivery companies offering garlic bread
+2025-07-02T14:44:54.594604,perplexity/sonar-pro,7,385,0.000021,0.005775,0.005796,Online pizza ordering sites with combo deals
+2025-07-02T14:44:54.651564,perplexity/sonar-pro,8,204,0.000024,0.003060,0.003084,Where can I order pizza with sides quickly
+2025-07-02T14:44:54.652556,perplexity/sonar-pro,5,239,0.000015,0.003585,0.003600,Quick pizza delivery options nearby
+2025-07-02T14:44:54.996780,anthropic/claude-3.5-haiku-20241022:beta,14,226,0.000011,0.000904,0.000915,Fastest pizza delivery app in India
+2025-07-02T14:44:55.031759,anthropic/claude-3.5-haiku-20241022:beta,15,258,0.000012,0.001032,0.001044,Pizza delivery platforms offering salad and sides
+2025-07-02T14:44:55.276606,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Best value pizza delivery service
+2025-07-02T14:44:55.293984,perplexity/sonar-pro,7,408,0.000021,0.006120,0.006141,Pizza delivery apps with cheese burst option
+2025-07-02T14:44:55.368247,anthropic/claude-3.5-haiku-20241022:beta,14,270,0.000011,0.001080,0.001091,Online pizza ordering sites with combo deals
+2025-07-02T14:44:55.379997,google/gemini-2.5-flash,5,500,0.000002,0.001250,0.001252,Quick pizza delivery options nearby
+2025-07-02T14:44:55.394382,google/gemini-2.5-flash,6,496,0.000002,0.001240,0.001242,Pizza delivery platforms with meal deals
+2025-07-02T14:44:55.516169,perplexity/sonar-pro,5,481,0.000015,0.007215,0.007230,Best value pizza delivery service
+2025-07-02T14:44:55.520792,google/gemini-2.5-flash,8,495,0.000002,0.001238,0.001240,Where can I order pizza with sides quickly
+2025-07-02T14:44:55.556430,google/gemini-2.5-flash,7,490,0.000002,0.001225,0.001227,Online pizza ordering sites with combo deals
+2025-07-02T14:44:55.608991,google/gemini-2.5-flash,7,492,0.000002,0.001230,0.001232,Pizza delivery platforms offering salad and sides
+2025-07-02T14:44:55.655349,google/gemini-2.5-flash,5,491,0.000002,0.001228,0.001229,Customizable pizza ordering online
+2025-07-02T14:44:55.717019,google/gemini-2.5-flash,6,493,0.000002,0.001233,0.001234,Pizza delivery companies offering garlic bread
+2025-07-02T14:44:55.725913,anthropic/claude-3.5-haiku-20241022:beta,14,244,0.000011,0.000976,0.000987,Pizza delivery apps with cheese burst option
+2025-07-02T14:44:55.846657,google/gemini-2.5-flash,7,493,0.000002,0.001233,0.001235,Pizza delivery apps with cheese burst option
+2025-07-02T14:44:55.966668,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Customizable pizza ordering online
+2025-07-02T14:44:56.242125,google/gemini-2.5-flash,7,490,0.000002,0.001225,0.001227,Pizza delivery app with multiple crust options
+2025-07-02T14:44:56.276072,google/gemini-2.5-flash,7,489,0.000002,0.001223,0.001225,Best pizza delivery service with customizable toppings
+2025-07-02T14:44:56.302908,anthropic/claude-3.5-haiku-20241022:beta,14,281,0.000011,0.001124,0.001135,Pizza delivery services with late night delivery
+2025-07-02T14:44:56.396063,anthropic/claude-3.5-haiku-20241022:beta,17,247,0.000014,0.000988,0.001002,Best pizza delivery service with customizable toppings
+2025-07-02T14:44:56.403667,google/gemini-2.5-flash,6,494,0.000002,0.001235,0.001237,Fastest pizza delivery app in India
+2025-07-02T14:44:56.447751,perplexity/sonar-pro,7,366,0.000021,0.005490,0.005511,Pizza delivery services with late night delivery
+2025-07-02T14:44:56.530135,anthropic/claude-3.5-haiku-20241022:beta,16,500,0.000013,0.002000,0.002013,Pizza ordering app with build your own pizza feature
+2025-07-02T14:44:56.678274,google/gemini-2.5-flash,9,487,0.000003,0.001218,0.001220,Pizza ordering app with build your own pizza feature
+2025-07-02T14:44:56.683639,anthropic/claude-3.5-haiku-20241022:beta,13,285,0.000010,0.001140,0.001150,Pizza delivery platforms with meal deals
+2025-07-02T14:44:56.816169,anthropic/claude-3.5-haiku-20241022:beta,15,500,0.000012,0.002000,0.002012,Pizza delivery app with multiple crust options
+2025-07-02T14:44:58.325709,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza delivery platforms with meal deals
+2025-07-02T14:44:58.614417,anthropic/claude-3.5-haiku-20241022:beta,13,495,0.000010,0.001980,0.001990,Customizable pizza ordering online
+2025-07-02T14:45:00.542244,perplexity/sonar-pro,7,492,0.000021,0.007380,0.007401,Best pizza delivery service with customizable toppings
+2025-07-02T14:45:00.561061,openai/o4-mini,7,247,0.000008,0.001087,0.001094,Affordable fast pizza delivery in my city
+2025-07-02T14:45:00.562107,openai/o4-mini,8,276,0.000009,0.001214,0.001223,Where can I order pizza with sides quickly
+2025-07-02T14:45:00.611368,openai/o4-mini,7,334,0.000008,0.001470,0.001477,Pizza delivery services with late night delivery
+2025-07-02T14:45:01.328683,openai/o4-mini,7,585,0.000008,0.002574,0.002582,Best pizza delivery service with customizable toppings
+2025-07-02T14:45:01.496432,openai/o4-mini,6,552,0.000007,0.002429,0.002435,Pizza delivery companies offering garlic bread
+2025-07-02T14:45:01.605309,perplexity/sonar-pro,7,422,0.000021,0.006330,0.006351,Fastest pizza delivery app in India
+2025-07-02T14:45:02.145245,openai/o4-mini,5,384,0.000005,0.001690,0.001695,Quick pizza delivery options nearby
+2025-07-02T14:45:02.204118,openai/o4-mini,5,370,0.000005,0.001628,0.001634,Customizable pizza ordering online
+2025-07-02T14:45:02.389339,perplexity/sonar-pro,9,500,0.000027,0.007500,0.007527,Pizza ordering app with build your own pizza feature
+2025-07-02T14:45:02.515125,openai/o4-mini,7,456,0.000008,0.002006,0.002014,Pizza delivery platforms offering salad and sides
+2025-07-02T14:45:02.517144,deepseek/deepseek-r1-0528,10,500,0.000005,0.001075,0.001080,Quick pizza delivery options nearby
+2025-07-02T14:45:02.820942,openai/o4-mini,6,450,0.000007,0.001980,0.001987,Pizza delivery platforms with meal deals
+2025-07-02T14:45:03.255965,openai/o4-mini,7,328,0.000008,0.001443,0.001451,Pizza delivery app with multiple crust options
+2025-07-02T14:45:03.494622,deepseek/deepseek-r1-0528,11,500,0.000005,0.001075,0.001080,Customizable pizza ordering online
+2025-07-02T14:45:03.834205,openai/o4-mini,9,449,0.000010,0.001976,0.001986,Pizza ordering app with build your own pizza feature
+2025-07-02T14:45:04.312678,deepseek/deepseek-r1-0528,11,500,0.000005,0.001075,0.001080,Best value pizza delivery service
+2025-07-02T14:45:04.472034,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery app with multiple crust options
+2025-07-02T14:45:04.709472,openai/o4-mini,7,157,0.000008,0.000691,0.000699,Fastest pizza delivery app in India
+2025-07-02T14:45:04.789269,openai/o4-mini,5,244,0.000005,0.001074,0.001079,Best value pizza delivery service
+2025-07-02T14:45:05.221000,openai/o4-mini,7,187,0.000008,0.000823,0.000831,Online pizza ordering sites with combo deals
+2025-07-02T14:45:06.759420,anthropic/claude-3.5-haiku-20241022:beta,13,205,0.000010,0.000820,0.000830,Pizza delivery with wings and sides
+2025-07-02T14:45:07.916861,openai/o4-mini,7,75,0.000008,0.000330,0.000338,Pizza delivery apps with cheese burst option
+2025-07-02T14:45:08.885808,anthropic/claude-3.5-haiku-20241022:beta,13,176,0.000010,0.000704,0.000714,Cheap pizza delivery near me
+2025-07-02T14:45:09.761443,perplexity/sonar-pro,5,344,0.000015,0.005160,0.005175,Cheap pizza delivery near me
+2025-07-02T14:45:10.038788,google/gemini-2.5-flash,6,481,0.000002,0.001203,0.001204,Pizza delivery with wings and sides
+2025-07-02T14:45:10.253706,anthropic/claude-3.5-haiku-20241022:beta,16,228,0.000013,0.000912,0.000925,Pizza services that deliver under 30 minutes
+2025-07-02T14:45:10.801641,google/gemini-2.5-flash,5,491,0.000002,0.001228,0.001229,Pizza ordering websites with coupons
+2025-07-02T14:45:10.822173,perplexity/sonar-pro,6,339,0.000018,0.005085,0.005103,Pizza delivery with wings and sides
+2025-07-02T14:45:10.904742,google/gemini-2.5-flash,9,499,0.000003,0.001248,0.001250,Pizza services that deliver under 30 minutes
+2025-07-02T14:45:11.186363,perplexity/sonar-pro,5,347,0.000015,0.005205,0.005220,Pizza ordering websites with coupons
+2025-07-02T14:45:11.467698,anthropic/claude-3.5-haiku-20241022:beta,14,275,0.000011,0.001100,0.001111,Pizza ordering websites with coupons
+2025-07-02T14:45:11.478266,google/gemini-2.5-flash,5,499,0.000002,0.001248,0.001249,Cheap pizza delivery near me
+2025-07-02T14:45:12.918810,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery services with late night delivery
+2025-07-02T14:45:13.768828,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Where can I order pizza with sides quickly
+2025-07-02T14:45:13.779390,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery companies offering garlic bread
+2025-07-02T14:45:14.079328,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery apps with cheese burst option
+2025-07-02T14:45:14.985481,openai/o4-mini,5,273,0.000005,0.001201,0.001207,Cheap pizza delivery near me
+2025-07-02T14:45:15.884892,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Online pizza ordering sites with combo deals
+2025-07-02T14:45:16.427496,openai/o4-mini,6,185,0.000007,0.000814,0.000821,Pizza delivery with wings and sides
+2025-07-02T14:45:17.809821,perplexity/sonar-pro,8,422,0.000024,0.006330,0.006354,Pizza services that deliver under 30 minutes
+2025-07-02T14:45:18.256346,openai/o4-mini,5,582,0.000005,0.002561,0.002566,Pizza ordering websites with coupons
+2025-07-02T14:45:18.490099,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Affordable fast pizza delivery in my city
+2025-07-02T14:45:19.347697,perplexity/sonar-pro,5,310,0.000015,0.004650,0.004665,Online pizza platforms with salads
+2025-07-02T14:45:19.648867,perplexity/sonar-pro,8,339,0.000024,0.005085,0.005109,Pizza services with veg and non veg sides
+2025-07-02T14:45:19.674367,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Best pizza delivery service with customizable toppings
+2025-07-02T14:45:19.763365,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Cheap pizza delivery near me
+2025-07-02T14:45:19.802624,google/gemini-2.5-flash,8,484,0.000002,0.001210,0.001212,Pizza services with veg and non veg sides
+2025-07-02T14:45:19.901611,google/gemini-2.5-flash,5,493,0.000002,0.001233,0.001234,Online pizza platforms with salads
+2025-07-02T14:45:20.268885,google/gemini-2.5-flash,6,496,0.000002,0.001240,0.001242,Pizza delivery options with family packs
+2025-07-02T14:45:20.457795,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery platforms offering salad and sides
+2025-07-02T14:45:20.742014,anthropic/claude-3.5-haiku-20241022:beta,13,281,0.000010,0.001124,0.001134,Online pizza platforms with salads
+2025-07-02T14:45:20.775418,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Fastest pizza delivery app in India
+2025-07-02T14:45:21.085784,anthropic/claude-3.5-haiku-20241022:beta,17,303,0.000014,0.001212,0.001226,Pizza services with veg and non veg sides
+2025-07-02T14:45:21.180592,anthropic/claude-3.5-haiku-20241022:beta,14,289,0.000011,0.001156,0.001167,Pizza delivery options with family packs
+2025-07-02T14:45:21.383877,google/gemini-2.5-flash,5,486,0.000002,0.001215,0.001217,Pizza apps with easy customization
+2025-07-02T14:45:21.492391,perplexity/sonar-pro,5,438,0.000015,0.006570,0.006585,Pizza apps with easy customization
+2025-07-02T14:45:21.714267,anthropic/claude-3.5-haiku-20241022:beta,13,304,0.000010,0.001216,0.001226,Pizza apps with easy customization
+2025-07-02T14:45:22.206515,google/gemini-2.5-flash,6,492,0.000002,0.001230,0.001232,Best pizza delivery chains in India
+2025-07-02T14:45:22.444284,anthropic/claude-3.5-haiku-20241022:beta,13,256,0.000010,0.001024,0.001034,Best pizza delivery chains in India
+2025-07-02T14:45:22.699810,openai/o4-mini,8,459,0.000009,0.002020,0.002028,Pizza services that deliver under 30 minutes
+2025-07-02T14:45:23.060760,google/gemini-2.5-flash,6,501,0.000002,0.001253,0.001254,Pizza ordering platforms with loyalty program
+2025-07-02T14:45:23.351053,perplexity/sonar-pro,6,488,0.000018,0.007320,0.007338,Pizza delivery options with family packs
+2025-07-02T14:45:25.097903,perplexity/sonar-pro,6,269,0.000018,0.004035,0.004053,Pizza delivery sites with online payment
+2025-07-02T14:45:26.040081,google/gemini-2.5-flash,5,496,0.000002,0.001240,0.001241,Pizza apps with order tracking
+2025-07-02T14:45:26.079901,perplexity/sonar-pro,6,476,0.000018,0.007140,0.007158,Pizza ordering platforms with loyalty program
+2025-07-02T14:45:26.802675,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza delivery for birthday parties
+2025-07-02T14:45:27.087963,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery with wings and sides
+2025-07-02T14:45:27.342971,perplexity/sonar-pro,6,421,0.000018,0.006315,0.006333,Best pizza delivery chains in India
+2025-07-02T14:45:27.393051,anthropic/claude-3.5-haiku-20241022:beta,13,280,0.000010,0.001120,0.001130,Fast pizza delivery for office lunch
+2025-07-02T14:45:27.681037,google/gemini-2.5-flash,6,486,0.000002,0.001215,0.001217,Fast pizza delivery for office lunch
+2025-07-02T14:45:27.740911,anthropic/claude-3.5-haiku-20241022:beta,12,308,0.000010,0.001232,0.001242,Pizza apps with order tracking
+2025-07-02T14:45:27.760180,anthropic/claude-3.5-haiku-20241022:beta,13,274,0.000010,0.001096,0.001106,Pizza delivery sites with online payment
+2025-07-02T14:45:27.821964,anthropic/claude-3.5-haiku-20241022:beta,12,297,0.000010,0.001188,0.001198,Pizza delivery for birthday parties
+2025-07-02T14:45:28.171443,openai/o4-mini,5,416,0.000005,0.001830,0.001836,Pizza apps with easy customization
+2025-07-02T14:45:28.434706,openai/o4-mini,8,461,0.000009,0.002028,0.002037,Pizza services with veg and non veg sides
+2025-07-02T14:45:28.629277,perplexity/sonar-pro,5,261,0.000015,0.003915,0.003930,Pizza apps with order tracking
+2025-07-02T14:45:28.793261,openai/o4-mini,6,610,0.000007,0.002684,0.002691,Pizza delivery options with family packs
+2025-07-02T14:45:28.859364,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza apps with order tracking
+2025-07-02T14:45:29.091395,openai/o4-mini,6,521,0.000007,0.002292,0.002299,Best pizza delivery chains in India
+2025-07-02T14:45:29.789130,anthropic/claude-3.5-haiku-20241022:beta,13,500,0.000010,0.002000,0.002010,Pizza ordering platforms with loyalty program
+2025-07-02T14:45:29.992183,perplexity/sonar-pro,5,438,0.000015,0.006570,0.006585,Pizza delivery for birthday parties
+2025-07-02T14:45:30.028316,google/gemini-2.5-flash,6,497,0.000002,0.001243,0.001244,Pizza delivery sites with online payment
+2025-07-02T14:45:30.257518,openai/o4-mini,5,280,0.000005,0.001232,0.001238,Pizza delivery for birthday parties
+2025-07-02T14:45:30.399514,deepseek/deepseek-r1-0528,11,500,0.000005,0.001075,0.001080,Online pizza platforms with salads
+2025-07-02T14:45:30.400518,openai/o4-mini,5,15,0.000005,0.000066,0.000072,Online pizza platforms with salads
+2025-07-02T14:45:30.749781,deepseek/deepseek-r1-0528,16,500,0.000008,0.001075,0.001083,Pizza ordering app with build your own pizza feature
+2025-07-02T14:45:30.872739,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery platforms with meal deals
+2025-07-02T14:45:31.159987,perplexity/sonar-pro,6,395,0.000018,0.005925,0.005943,Fast pizza delivery for office lunch
+2025-07-02T14:45:33.232786,openai/o4-mini,6,559,0.000007,0.002460,0.002466,Fast pizza delivery for office lunch
+2025-07-02T14:45:33.775866,deepseek/deepseek-r1-0528,15,500,0.000007,0.001075,0.001082,Pizza services that deliver under 30 minutes
+2025-07-02T14:45:33.858996,perplexity/sonar-pro,5,208,0.000015,0.003120,0.003135,Pizza delivery with dessert options
+2025-07-02T14:45:33.862104,perplexity/sonar-pro,5,476,0.000015,0.007140,0.007155,Pizza platforms with multiple outlets
+2025-07-02T14:45:33.888210,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza platforms with multiple outlets
+2025-07-02T14:45:33.909755,anthropic/claude-3.5-haiku-20241022:beta,12,302,0.000010,0.001208,0.001218,Pizza platforms with multiple outlets
+2025-07-02T14:45:35.026730,openai/o4-mini,5,221,0.000005,0.000972,0.000978,Pizza apps with order tracking
+2025-07-02T14:45:35.436022,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Best pizza delivery chains in India
+2025-07-02T14:45:36.583991,anthropic/claude-3.5-haiku-20241022:beta,13,272,0.000010,0.001088,0.001098,Pizza delivery with dessert options
+2025-07-02T14:45:36.793647,anthropic/claude-3.5-haiku-20241022:beta,14,275,0.000011,0.001100,0.001111,Pizza services with gluten free options
+2025-07-02T14:45:37.241378,google/gemini-2.5-flash,5,492,0.000002,0.001230,0.001232,Pizza delivery with dessert options
+2025-07-02T14:45:37.312573,deepseek/deepseek-r1-0528,15,500,0.000007,0.001075,0.001082,Pizza services with veg and non veg sides
+2025-07-02T14:45:37.753867,google/gemini-2.5-flash,6,499,0.000002,0.001248,0.001249,Pizza services with gluten free options
+2025-07-02T14:45:38.074506,anthropic/claude-3.5-haiku-20241022:beta,13,500,0.000010,0.002000,0.002010,Pizza ordering app with group orders
+2025-07-02T14:45:38.092683,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery options with family packs
+2025-07-02T14:45:38.225159,google/gemini-2.5-flash,6,493,0.000002,0.001233,0.001234,Pizza ordering app with group orders
+2025-07-02T14:45:38.498579,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery sites with online payment
+2025-07-02T14:45:38.836167,openai/o4-mini,6,206,0.000007,0.000906,0.000913,Pizza ordering platforms with loyalty program
+2025-07-02T14:45:40.022446,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering websites with coupons
+2025-07-02T14:45:40.139718,perplexity/sonar-pro,7,258,0.000021,0.003870,0.003891,Pizza delivery services with fast cooking time
+ce
+2025-07-02T14:45:40.158200,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza delivery platforms with regional presence
+2025-07-02T14:45:41.040774,perplexity/sonar-pro,6,430,0.000018,0.006450,0.006468,Pizza ordering app with group orders
+2025-07-02T14:45:41.151067,google/gemini-2.5-flash,7,494,0.000002,0.001235,0.001237,Pizza delivery services with fast cooking time
+2025-07-02T14:45:41.437799,openai/o4-mini,6,496,0.000007,0.002182,0.002189,Pizza ordering app with group orders
+2025-07-02T14:45:41.609947,deepseek/deepseek-r1-0528,11,500,0.000005,0.001075,0.001080,Pizza apps with easy customization
+2025-07-02T14:45:41.884649,anthropic/claude-3.5-haiku-20241022:beta,12,264,0.000010,0.001056,0.001066,Online pizza chains delivering nationwide
+2025-07-02T14:45:42.091131,anthropic/claude-3.5-haiku-20241022:beta,13,306,0.000010,0.001224,0.001234,Pizza delivery platforms with regional presence
+2025-07-02T14:45:42.095159,openai/o4-mini,6,406,0.000007,0.001786,0.001793,Pizza services with gluten free options
+2025-07-02T14:45:42.264883,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza services with gluten free options
+2025-07-02T14:45:42.313700,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Fast pizza delivery for office lunch
+2025-07-02T14:45:42.467876,openai/o4-mini,5,211,0.000005,0.000928,0.000934,Pizza platforms with multiple outlets
+2025-07-02T14:45:42.698310,google/gemini-2.5-flash,5,492,0.000002,0.001230,0.001232,Pizza apps offering combo meals
+2025-07-02T14:45:42.922488,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza delivery for birthday parties
+2025-07-02T14:45:43.405311,anthropic/claude-3.5-haiku-20241022:beta,12,265,0.000010,0.001060,0.001070,Pizza apps offering combo meals
+2025-07-02T14:45:43.448105,anthropic/claude-3.5-haiku-20241022:beta,13,256,0.000010,0.001024,0.001034,Pizza ordering sites with side dishes
+2025-07-02T14:45:43.636012,anthropic/claude-3.5-haiku-20241022:beta,14,260,0.000011,0.001040,0.001051,Pizza delivery services with fast cooking time
+2025-07-02T14:45:43.760309,google/gemini-2.5-flash,5,492,0.000002,0.001230,0.001232,Online pizza chains delivering nationwide
+2025-07-02T14:45:44.749286,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering platforms with loyalty program
+2025-07-02T14:45:44.841601,google/gemini-2.5-flash,6,228,0.000002,0.000570,0.000572,Pizza delivery with customizable crust thickness
+2025-07-02T14:45:44.843588,google/gemini-2.5-flash,6,497,0.000002,0.001243,0.001244,Pizza ordering sites with side dishes
+2025-07-02T14:45:45.814162,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza services with gluten free options
+2025-07-02T14:45:45.977739,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza delivery with dessert options
+2025-07-02T14:45:46.041687,perplexity/sonar-pro,6,232,0.000018,0.003480,0.003498,Pizza ordering sites with side dishes
+2025-07-02T14:45:46.405311,openai/o4-mini,7,539,0.000008,0.002372,0.002379,Pizza delivery services with fast cooking time
+2025-07-02T14:45:46.613125,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery services with fast cooking time
+2025-07-02T14:45:46.734649,google/gemini-2.5-flash,5,489,0.000002,0.001223,0.001224,Pizza service comparison in India
+2025-07-02T14:45:46.823536,perplexity/sonar-pro,5,492,0.000015,0.007380,0.007395,Pizza apps offering combo meals
+2025-07-02T14:45:46.968981,anthropic/claude-3.5-haiku-20241022:beta,12,303,0.000010,0.001212,0.001222,Pizza service comparison in India
+2025-07-02T14:45:47.198345,perplexity/sonar-pro,6,263,0.000018,0.003945,0.003963,Pizza ordering websites with kids menu
+2025-07-02T14:45:47.418595,google/gemini-2.5-flash,6,495,0.000002,0.001238,0.001239,Pizza platforms with best customer reviews
+2025-07-02T14:45:47.443266,anthropic/claude-3.5-haiku-20241022:beta,13,245,0.000010,0.000980,0.000990,Pizza platforms with best customer reviews
+2025-07-02T14:45:48.050733,anthropic/claude-3.5-haiku-20241022:beta,13,269,0.000010,0.001076,0.001086,Pizza ordering websites with kids menu
+2025-07-02T14:45:48.179681,google/gemini-2.5-flash,6,495,0.000002,0.001238,0.001239,Pizza ordering websites with kids menu
+2025-07-02T14:45:48.694615,deepseek/deepseek-r1-0528,11,499,0.000005,0.001073,0.001078,Pizza platforms with multiple outlets
+2025-07-02T14:45:49.818807,google/gemini-2.5-flash,6,450,0.000002,0.001125,0.001127,Quick pizza delivery for game night
+2025-07-02T14:45:50.032656,perplexity/sonar-pro,5,491,0.000015,0.007365,0.007380,Online pizza chains delivering nationwide
+2025-07-02T14:45:50.166559,openai/o4-mini,6,0,0.000007,0.000000,0.000007,Pizza delivery sites with online payment
+2025-07-02T14:45:50.264796,anthropic/claude-3.5-haiku-20241022:beta,15,500,0.000012,0.002000,0.002012,Pizza delivery with customizable crust thickness
+2025-07-02T14:45:50.479168,openai/o4-mini,6,561,0.000007,0.002468,0.002475,Pizza ordering sites with side dishes
+2025-07-02T14:45:50.624454,perplexity/sonar-pro,7,264,0.000021,0.003960,0.003981,Pizza delivery services with meaty sides
+2025-07-02T14:45:50.804327,anthropic/claude-3.5-haiku-20241022:beta,13,259,0.000010,0.001036,0.001046,Quick pizza delivery for game night
+2025-07-02T14:45:51.277105,openai/o4-mini,5,471,0.000005,0.002072,0.002078,Pizza apps offering combo meals
+2025-07-02T14:45:51.291705,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Pizza service comparison in India
+2025-07-02T14:45:51.478009,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery platforms with regional presence
+2025-07-02T14:45:52.014140,perplexity/sonar-pro,6,355,0.000018,0.005325,0.005343,Online pizza ordering with vegetarian options
+2025-07-02T14:45:52.055103,perplexity/sonar-pro,6,397,0.000018,0.005955,0.005973,Pizza delivery with customizable crust thickness
+2025-07-02T14:45:52.202028,google/gemini-2.5-flash,7,492,0.000002,0.001230,0.001232,Pizza delivery services with meaty sides
+2025-07-02T14:45:52.252747,deepseek/deepseek-r1-0528,11,500,0.000005,0.001075,0.001080,Online pizza chains delivering nationwide
+2025-07-02T14:45:52.527997,anthropic/claude-3.5-haiku-20241022:beta,14,260,0.000011,0.001040,0.001051,Pizza delivery services with meaty sides
+2025-07-02T14:45:53.047236,google/gemini-2.5-flash,6,483,0.000002,0.001208,0.001209,Online pizza ordering with vegetarian options
+2025-07-02T14:45:53.109167,anthropic/claude-3.5-haiku-20241022:beta,14,305,0.000011,0.001220,0.001231,Online pizza ordering with vegetarian options
+2025-07-02T14:45:53.413575,perplexity/sonar-pro,6,296,0.000018,0.004440,0.004458,Quick pizza delivery for game night
+2025-07-02T14:45:54.315842,openai/o4-mini,5,285,0.000005,0.001254,0.001260,Online pizza chains delivering nationwide
+2025-07-02T14:45:54.651715,openai/o4-mini,5,194,0.000005,0.000854,0.000859,Pizza service comparison in India
+2025-07-02T14:45:55.004133,google/gemini-2.5-flash,7,501,0.000002,0.001253,0.001255,Pizza delivery apps with real time updates
+2025-07-02T14:45:55.202588,openai/o4-mini,6,374,0.000007,0.001646,0.001652,Pizza delivery with customizable crust thickness
+2025-07-02T14:45:55.209161,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza platforms with best customer reviews
+2025-07-02T14:45:55.561149,perplexity/sonar-pro,7,242,0.000021,0.003630,0.003651,Pizza delivery apps with real time updates
+2025-07-02T14:45:55.832164,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering sites with side dishes
+2025-07-02T14:45:56.739191,deepseek/deepseek-r1-0528,12,499,0.000006,0.001073,0.001079,Pizza ordering app with group orders
+2025-07-02T14:45:57.159009,google/gemini-2.5-flash,5,492,0.000002,0.001230,0.001232,Pizza ordering for group parties
+2025-07-02T14:45:57.637546,openai/o4-mini,5,205,0.000005,0.000902,0.000907,Pizza delivery with dessert options
+2025-07-02T14:45:58.245398,openai/o4-mini,6,704,0.000007,0.003098,0.003104,Online pizza ordering with vegetarian options
+2025-07-02T14:45:58.340607,anthropic/claude-3.5-haiku-20241022:beta,12,272,0.000010,0.001088,0.001098,Pizza ordering for group parties
+2025-07-02T14:45:59.027930,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Pizza ordering for group parties
+2025-07-02T14:45:59.925074,anthropic/claude-3.5-haiku-20241022:beta,14,500,0.000011,0.002000,0.002011,Pizza delivery apps with real time updates
+2025-07-02T14:46:00.085585,openai/o4-mini,7,566,0.000008,0.002490,0.002498,Pizza delivery apps with real time updates
+2025-07-02T14:46:00.325466,openai/o4-mini,6,0,0.000007,0.000000,0.000007,Pizza delivery platforms with regional presence
+2025-07-02T14:46:00.381452,perplexity/sonar-pro,6,387,0.000018,0.005805,0.005823,Pizza delivery with variety of toppings
+2025-07-02T14:46:00.429777,openai/o4-mini,6,251,0.000007,0.001104,0.001111,Quick pizza delivery for game night
+2025-07-02T14:46:00.468822,google/gemini-2.5-flash,5,501,0.000002,0.001253,0.001254,Pizza service with good ratings
+2025-07-02T14:46:00.519206,openai/o4-mini,7,368,0.000008,0.001619,0.001627,Pizza delivery services with meaty sides
+2025-07-02T14:46:00.719501,perplexity/sonar-pro,5,280,0.000015,0.004200,0.004215,Pizza service with good ratings
+2025-07-02T14:46:01.004534,anthropic/claude-3.5-haiku-20241022:beta,15,302,0.000012,0.001208,0.001220,Pizza delivery with variety of toppings
+2025-07-02T14:46:01.293344,openai/o4-mini,6,46,0.000007,0.000202,0.000209,Pizza platforms with best customer reviews
+2025-07-02T14:46:01.481801,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering websites with kids menu
+2025-07-02T14:46:01.643490,google/gemini-2.5-flash,6,481,0.000002,0.001203,0.001204,Pizza delivery with variety of toppings
+2025-07-02T14:46:01.646573,perplexity/sonar-pro,6,228,0.000018,0.003420,0.003438,Pizza delivery sites offering pasta sides
+2025-07-02T14:46:01.878631,anthropic/claude-3.5-haiku-20241022:beta,12,253,0.000010,0.001012,0.001022,Pizza service with good ratings
+2025-07-02T14:46:02.081671,openai/o4-mini,5,112,0.000005,0.000493,0.000498,Pizza service with good ratings
+2025-07-02T14:46:02.353809,anthropic/claude-3.5-haiku-20241022:beta,13,255,0.000010,0.001020,0.001030,Pizza delivery sites offering pasta sides
+2025-07-02T14:46:02.372119,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza service comparison in India
+2025-07-02T14:46:03.159240,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Online pizza ordering with vegetarian options
+2025-07-02T14:46:04.419228,google/gemini-2.5-flash,6,493,0.000002,0.001233,0.001234,Pizza delivery sites offering pasta sides
+2025-07-02T14:46:04.458703,openai/o4-mini,5,515,0.000005,0.002266,0.002272,Pizza ordering for group parties
+2025-07-02T14:46:05.361300,anthropic/claude-3.5-haiku-20241022:beta,13,307,0.000010,0.001228,0.001238,Pizza ordering platforms with discounts
+2025-07-02T14:46:05.564148,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Pizza ordering platforms with discounts
+2025-07-02T14:46:06.132254,google/gemini-2.5-flash,5,492,0.000002,0.001230,0.001232,Pizza ordering platforms with discounts
+2025-07-02T14:46:07.357003,google/gemini-2.5-flash,6,497,0.000002,0.001243,0.001244,Pizza delivery apps with onion rings
+2025-07-02T14:46:07.553993,anthropic/claude-3.5-haiku-20241022:beta,14,261,0.000011,0.001044,0.001055,Pizza delivery apps with onion rings
+2025-07-02T14:46:07.732827,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering for group parties
+2025-07-02T14:46:07.866053,perplexity/sonar-pro,6,341,0.000018,0.005115,0.005133,Pizza delivery apps with onion rings
+2025-07-02T14:46:08.696159,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery with customizable crust thickness
+2025-07-02T14:46:08.722255,openai/o4-mini,6,382,0.000007,0.001681,0.001687,Pizza delivery with variety of toppings
+2025-07-02T14:46:08.758413,google/gemini-2.5-flash,5,496,0.000002,0.001240,0.001241,Best pizza deals near me
+2025-07-02T14:46:08.818326,anthropic/claude-3.5-haiku-20241022:beta,12,220,0.000010,0.000880,0.000890,Best pizza deals near me
+2025-07-02T14:46:10.020360,google/gemini-2.5-flash,5,497,0.000002,0.001243,0.001244,Pizza services for quick dinner
+2025-07-02T14:46:10.480277,perplexity/sonar-pro,5,262,0.000015,0.003930,0.003945,Pizza services for quick dinner
+2025-07-02T14:46:10.556417,openai/o4-mini,5,490,0.000005,0.002156,0.002161,Pizza ordering platforms with discounts
+2025-07-02T14:46:10.815227,openai/o4-mini,6,0,0.000007,0.000000,0.000007,Pizza ordering websites with kids menu
+2025-07-02T14:46:11.244776,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery services with meaty sides
+2025-07-02T14:46:11.396681,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery with variety of toppings
+2025-07-02T14:46:11.434372,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza service with good ratings
+2025-07-02T14:46:11.464413,anthropic/claude-3.5-haiku-20241022:beta,12,267,0.000010,0.001068,0.001078,Pizza services for quick dinner
+2025-07-02T14:46:11.760647,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza platforms with best customer reviews
+2025-07-02T14:46:11.872666,openai/o4-mini,6,111,0.000007,0.000488,0.000495,Pizza delivery sites offering pasta sides
+2025-07-02T14:46:12.105317,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery sites offering pasta sides
+2025-07-02T14:46:12.362146,perplexity/sonar-pro,5,283,0.000015,0.004245,0.004260,Best pizza deals near me
+2025-07-02T14:46:12.820141,google/gemini-2.5-flash,6,499,0.000002,0.001248,0.001249,Pizza delivery services with reliable timing
+2025-07-02T14:46:13.008722,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Quick pizza delivery for game night
+2025-07-02T14:46:13.249799,google/gemini-2.5-flash,5,163,0.000002,0.000408,0.000409,Pizza ordering with extra cheese
+2025-07-02T14:46:13.540623,anthropic/claude-3.5-haiku-20241022:beta,13,259,0.000010,0.001036,0.001046,Pizza delivery services with reliable timing
+2025-07-02T14:46:14.513382,anthropic/claude-3.5-haiku-20241022:beta,12,219,0.000010,0.000876,0.000886,Pizza ordering with extra cheese
+2025-07-02T14:46:15.015370,openai/o4-mini,5,444,0.000005,0.001954,0.001959,Best pizza deals near me
+2025-07-02T14:46:15.696962,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza delivery services with reliable timing
+2025-07-02T14:46:16.063524,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery services with reliable timing
+2025-07-02T14:46:16.430294,google/gemini-2.5-flash,8,497,0.000002,0.001243,0.001245,Pizza platforms with 24 hour delivery
+2025-07-02T14:46:16.755839,perplexity/sonar-pro,5,411,0.000015,0.006165,0.006180,Pizza ordering with extra cheese
+2025-07-02T14:46:16.983839,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza apps offering combo meals
+2025-07-02T14:46:17.131270,anthropic/claude-3.5-haiku-20241022:beta,15,245,0.000012,0.000980,0.000992,Pizza platforms with 24 hour delivery
+2025-07-02T14:46:17.223101,perplexity/sonar-pro,7,500,0.000021,0.007500,0.007521,Pizza delivery apps with multiple payment options
+2025-07-02T14:46:17.489143,google/gemini-2.5-flash,7,495,0.000002,0.001238,0.001240,Pizza delivery apps with multiple payment options
+2025-07-02T14:46:17.568184,perplexity/sonar-pro,6,212,0.000018,0.003180,0.003198,Pizza delivery sites with side salads
+2025-07-02T14:46:17.752683,perplexity/sonar-pro,7,470,0.000021,0.007050,0.007071,Pizza platforms with 24 hour delivery
+2025-07-02T14:46:17.772176,openai/o4-mini,5,478,0.000005,0.002103,0.002109,Pizza services for quick dinner
+2025-07-02T14:46:17.846166,anthropic/claude-3.5-haiku-20241022:beta,13,278,0.000010,0.001112,0.001122,Pizza ordering websites with customization
+2025-07-02T14:46:17.942259,openai/o4-mini,5,215,0.000005,0.000946,0.000951,Pizza ordering with extra cheese
+2025-07-02T14:46:18.200572,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza services for quick dinner
+2025-07-02T14:46:18.267096,anthropic/claude-3.5-haiku-20241022:beta,14,239,0.000011,0.000956,0.000967,Pizza delivery sites with side salads
+2025-07-02T14:46:18.643981,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering websites with customization
+2025-07-02T14:46:18.777305,google/gemini-2.5-flash,6,494,0.000002,0.001235,0.001237,Pizza delivery sites with side salads
+2025-07-02T14:46:18.823584,anthropic/claude-3.5-haiku-20241022:beta,13,298,0.000010,0.001192,0.001202,Pizza services with different sauce choices
+2025-07-02T14:46:18.954795,anthropic/claude-3.5-haiku-20241022:beta,13,289,0.000010,0.001156,0.001166,Pizza delivery for family dinners
+2025-07-02T14:46:19.054295,anthropic/claude-3.5-haiku-20241022:beta,14,279,0.000011,0.001116,0.001127,Pizza delivery apps with multiple payment options
+2025-07-02T14:46:19.268876,anthropic/claude-3.5-haiku-20241022:beta,13,284,0.000010,0.001136,0.001146,Pizza ordering apps for office parties
+2025-07-02T14:46:19.319545,google/gemini-2.5-flash,6,493,0.000002,0.001233,0.001234,Pizza services with different sauce choices
+2025-07-02T14:46:19.432337,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza delivery for family dinners
+2025-07-02T14:46:19.483239,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza ordering websites with customization
+2025-07-02T14:46:19.578064,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza ordering apps for office parties
+2025-07-02T14:46:19.799990,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza services with different sauce choices
+2025-07-02T14:46:20.088980,google/gemini-2.5-flash,6,495,0.000002,0.001238,0.001239,Pizza ordering apps for office parties
+2025-07-02T14:46:20.112936,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza delivery for family dinners
+2025-07-02T14:46:20.243153,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery apps with real time updates
+2025-07-02T14:46:20.564719,google/gemini-2.5-flash,6,319,0.000002,0.000798,0.000799,Pizza delivery services in my area
+2025-07-02T14:46:21.657199,perplexity/sonar-pro,6,352,0.000018,0.005280,0.005298,Pizza delivery services in my area
+2025-07-02T14:46:22.025488,anthropic/claude-3.5-haiku-20241022:beta,13,150,0.000010,0.000600,0.000610,Pizza delivery services in my area
+2025-07-02T14:46:22.030053,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Pizza delivery for family dinners
+2025-07-02T14:46:22.339159,openai/o4-mini,7,472,0.000008,0.002077,0.002084,Pizza platforms with 24 hour delivery
+2025-07-02T14:46:22.700668,openai/o4-mini,6,556,0.000007,0.002446,0.002453,Pizza delivery services with reliable timing
+2025-07-02T14:46:23.017136,perplexity/sonar-pro,6,472,0.000018,0.007080,0.007098,Pizza services with different sauce choices
+2025-07-02T14:46:23.553008,perplexity/sonar-pro,5,468,0.000015,0.007020,0.007035,Pizza ordering websites with customization
+2025-07-02T14:46:23.585060,google/gemini-2.5-flash,5,497,0.000002,0.001243,0.001244,Pizza platforms offering dinner combos
+2025-07-02T14:46:23.748750,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering platforms with discounts
+2025-07-02T14:46:24.172500,openai/o4-mini,5,409,0.000005,0.001800,0.001805,Pizza delivery for family dinners
+2025-07-02T14:46:24.267964,google/gemini-2.5-flash,6,384,0.000002,0.000960,0.000962,Pizza ordering for late night cravings
+2025-07-02T14:46:24.350123,perplexity/sonar-pro,5,361,0.000015,0.005415,0.005430,Pizza platforms offering dinner combos
+2025-07-02T14:46:24.954808,anthropic/claude-3.5-haiku-20241022:beta,13,273,0.000010,0.001092,0.001102,Pizza platforms offering dinner combos
+2025-07-02T14:46:25.210728,openai/o4-mini,6,371,0.000007,0.001632,0.001639,Pizza services with different sauce choices
+2025-07-02T14:46:25.671177,openai/o4-mini,6,35,0.000007,0.000154,0.000161,Pizza delivery services in my area
+2025-07-02T14:46:26.621178,openai/o4-mini,6,646,0.000007,0.002842,0.002849,Pizza ordering apps for office parties
+2025-07-02T14:46:26.933385,google/gemini-2.5-flash,6,388,0.000002,0.000970,0.000972,Pizza delivery with soft drinks included
+2025-07-02T14:46:27.181419,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza platforms offering dinner combos
+2025-07-02T14:46:27.244762,openai/o4-mini,5,130,0.000005,0.000572,0.000577,Pizza ordering websites with customization
+2025-07-02T14:46:27.295086,openai/o4-mini,6,0,0.000007,0.000000,0.000007,Pizza delivery apps with onion rings
+2025-07-02T14:46:27.370345,anthropic/claude-3.5-haiku-20241022:beta,15,279,0.000012,0.001116,0.001128,Pizza ordering for late night cravings
+2025-07-02T14:46:27.447216,perplexity/sonar-pro,6,301,0.000018,0.004515,0.004533,Pizza delivery with soft drinks included
+2025-07-02T14:46:27.595257,anthropic/claude-3.5-haiku-20241022:beta,13,168,0.000010,0.000672,0.000682,Pizza delivery with soft drinks included
+2025-07-02T14:46:27.648976,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery apps with multiple payment options
+2025-07-02T14:46:27.811423,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery apps with onion rings
+2025-07-02T14:46:28.235960,openai/o4-mini,6,220,0.000007,0.000968,0.000975,Pizza delivery sites with side salads
+2025-07-02T14:46:28.827345,deepseek/deepseek-r1-0528,11,500,0.000005,0.001075,0.001080,Best pizza deals near me
+2025-07-02T14:46:29.575174,anthropic/claude-3.5-haiku-20241022:beta,13,303,0.000010,0.001212,0.001222,Pizza services with snack sides
+2025-07-02T14:46:30.031175,perplexity/sonar-pro,5,266,0.000015,0.003990,0.004005,Pizza services with snack sides
+2025-07-02T14:46:30.345041,google/gemini-2.5-flash,5,496,0.000002,0.001240,0.001241,Pizza services with snack sides
+2025-07-02T14:46:30.636227,anthropic/claude-3.5-haiku-20241022:beta,13,255,0.000010,0.001020,0.001030,Online pizza chains with fast service
+2025-07-02T14:46:31.051890,google/gemini-2.5-flash,6,499,0.000002,0.001248,0.001249,Online pizza chains with fast service
+2025-07-02T14:46:31.083272,perplexity/sonar-pro,6,470,0.000018,0.007050,0.007068,Pizza ordering for late night cravings
+2025-07-02T14:46:31.287575,anthropic/claude-3.5-haiku-20241022:beta,13,282,0.000010,0.001128,0.001138,Pizza ordering apps with easy UI
+2025-07-02T14:46:31.474034,openai/o4-mini,6,237,0.000007,0.001043,0.001049,Pizza delivery with soft drinks included
+2025-07-02T14:46:32.049747,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery services in my area
+2025-07-02T14:46:32.876917,google/gemini-2.5-flash,6,495,0.000002,0.001238,0.001239,Pizza ordering apps with easy UI
+2025-07-02T14:46:33.033904,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza services for group discounts
+2025-07-02T14:46:33.300665,perplexity/sonar-pro,6,283,0.000018,0.004245,0.004263,Pizza ordering websites with quick checkout
+2025-07-02T14:46:33.470312,perplexity/sonar-pro,6,259,0.000018,0.003885,0.003903,Online pizza chains with fast service
+2025-07-02T14:46:33.893771,openai/o4-mini,6,573,0.000007,0.002521,0.002528,Pizza ordering for late night cravings
+2025-07-02T14:46:34.333937,google/gemini-2.5-flash,6,491,0.000002,0.001228,0.001229,Pizza delivery with spice level control
+2025-07-02T14:46:34.445303,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza delivery with spice level control
+2025-07-02T14:46:34.640550,anthropic/claude-3.5-haiku-20241022:beta,13,298,0.000010,0.001192,0.001202,Pizza services for group discounts
+2025-07-02T14:46:35.260579,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering for late night cravings
+2025-07-02T14:46:35.610828,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering with extra cheese
+2025-07-02T14:46:35.701758,google/gemini-2.5-flash,6,496,0.000002,0.001240,0.001242,Pizza ordering websites with quick checkout
+2025-07-02T14:46:35.827676,openai/o4-mini,6,352,0.000007,0.001549,0.001555,Online pizza chains with fast service
+2025-07-02T14:46:36.032735,anthropic/claude-3.5-haiku-20241022:beta,14,500,0.000011,0.002000,0.002011,Pizza delivery with spice level control
+2025-07-02T14:46:36.508758,anthropic/claude-3.5-haiku-20241022:beta,13,275,0.000010,0.001100,0.001110,Pizza ordering websites with quick checkout
+2025-07-02T14:46:36.923156,google/gemini-2.5-flash,7,501,0.000002,0.001253,0.001255,Pizza delivery sites with multi city service
+2025-07-02T14:46:36.947723,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering apps for office parties
+2025-07-02T14:46:37.542562,openai/o4-mini,6,551,0.000007,0.002424,0.002431,Pizza ordering apps with easy UI
+2025-07-02T14:46:37.564012,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza services with snack sides
+2025-07-02T14:46:37.602462,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering apps with easy UI
+2025-07-02T14:46:38.021083,perplexity/sonar-pro,7,254,0.000021,0.003810,0.003831,Pizza delivery sites with multi city service
+2025-07-02T14:46:38.367598,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza ordering apps with easy UI
+2025-07-02T14:46:39.087939,anthropic/claude-3.5-haiku-20241022:beta,14,326,0.000011,0.001304,0.001315,Pizza delivery sites with multi city service
+2025-07-02T14:46:39.800930,openai/o4-mini,5,246,0.000005,0.001082,0.001088,Pizza services with snack sides
+2025-07-02T14:46:39.814742,openai/o4-mini,5,533,0.000005,0.002345,0.002351,Pizza services for group discounts
+2025-07-02T14:46:40.997744,google/gemini-2.5-flash,6,496,0.000002,0.001240,0.001242,Pizza delivery apps with special offers
+2025-07-02T14:46:41.073329,openai/o4-mini,6,289,0.000007,0.001272,0.001278,Pizza ordering websites with quick checkout
+2025-07-02T14:46:41.519164,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Pizza services for group discounts
+2025-07-02T14:46:41.698349,anthropic/claude-3.5-haiku-20241022:beta,13,270,0.000010,0.001080,0.001090,Pizza delivery apps with special offers
+2025-07-02T14:46:41.786379,perplexity/sonar-pro,6,297,0.000018,0.004455,0.004473,Pizza delivery apps with special offers
+2025-07-02T14:46:41.916763,perplexity/sonar-pro,5,499,0.000015,0.007485,0.007500,Pizza platforms with phone ordering
+2025-07-02T14:46:41.998554,openai/o4-mini,7,0,0.000008,0.000000,0.000008,Pizza delivery apps with multiple payment options
+2025-07-02T14:46:42.147074,anthropic/claude-3.5-haiku-20241022:beta,12,272,0.000010,0.001088,0.001098,Pizza platforms with phone ordering
+2025-07-02T14:46:42.599351,perplexity/sonar-pro,6,401,0.000018,0.006015,0.006033,Pizza ordering for quick lunch break
+2025-07-02T14:46:42.601334,google/gemini-2.5-flash,5,498,0.000002,0.001245,0.001246,Pizza platforms with phone ordering
+2025-07-02T14:46:42.601334,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Online pizza chains with fast service
+2025-07-02T14:46:42.832457,anthropic/claude-3.5-haiku-20241022:beta,13,274,0.000010,0.001096,0.001106,Pizza ordering for quick lunch break
+2025-07-02T14:46:42.872491,google/gemini-2.5-flash,6,498,0.000002,0.001245,0.001247,Pizza ordering for quick lunch break
+2025-07-02T14:46:43.644620,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering websites with quick checkout
+2025-07-02T14:46:44.041093,openai/o4-mini,7,473,0.000008,0.002081,0.002089,Pizza delivery sites with multi city service
+2025-07-02T14:46:44.605377,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza services for group discounts
+2025-07-02T14:46:44.963129,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza delivery services with minimum wait
+2025-07-02T14:46:45.129740,google/gemini-2.5-flash,6,494,0.000002,0.001235,0.001237,Pizza ordering platforms for budget meals
+2025-07-02T14:46:45.414884,anthropic/claude-3.5-haiku-20241022:beta,13,299,0.000010,0.001196,0.001206,Pizza delivery services with minimum wait
+2025-07-02T14:46:45.443184,google/gemini-2.5-flash,6,497,0.000002,0.001243,0.001244,Pizza delivery services with minimum wait
+2025-07-02T14:46:46.325214,perplexity/sonar-pro,6,499,0.000018,0.007485,0.007503,Pizza ordering platforms for budget meals
+2025-07-02T14:46:46.388261,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery sites with side salads
+2025-07-02T14:46:46.716501,openai/o4-mini,5,0,0.000005,0.000000,0.000005,Pizza platforms offering dinner combos
+2025-07-02T14:46:47.545560,anthropic/claude-3.5-haiku-20241022:beta,13,296,0.000010,0.001184,0.001194,Pizza ordering platforms for budget meals
+2025-07-02T14:46:47.675539,perplexity/sonar-pro,6,291,0.000018,0.004365,0.004383,Pizza services with multiple cheese types
+2025-07-02T14:46:47.964146,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza delivery with flavored dips
+2025-07-02T14:46:48.430561,google/gemini-2.5-flash,6,492,0.000002,0.001230,0.001232,Pizza services with multiple cheese types
+2025-07-02T14:46:48.481494,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza platforms with 24 hour delivery
+2025-07-02T14:46:49.038408,anthropic/claude-3.5-haiku-20241022:beta,14,312,0.000011,0.001248,0.001259,Pizza delivery with flavored dips
+2025-07-02T14:46:49.609517,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza delivery for weekend nights
+2025-07-02T14:46:49.829961,anthropic/claude-3.5-haiku-20241022:beta,14,242,0.000011,0.000968,0.000979,Pizza ordering websites for party packs
+2025-07-02T14:46:49.993481,openai/o4-mini,6,478,0.000007,0.002103,0.002110,Pizza delivery with spice level control
+2025-07-02T14:46:50.050534,openai/o4-mini,6,228,0.000007,0.001003,0.001010,Pizza ordering for quick lunch break
+2025-07-02T14:46:50.302586,anthropic/claude-3.5-haiku-20241022:beta,13,500,0.000010,0.002000,0.002010,Pizza services with multiple cheese types
+2025-07-02T14:46:50.422551,perplexity/sonar-pro,6,356,0.000018,0.005340,0.005358,Pizza ordering websites for party packs
+2025-07-02T14:46:50.493533,perplexity/sonar-pro,5,459,0.000015,0.006885,0.006900,Pizza delivery with flavored dips
+2025-07-02T14:46:51.027367,anthropic/claude-3.5-haiku-20241022:beta,12,243,0.000010,0.000972,0.000982,Pizza delivery for weekend nights
+2025-07-02T14:46:51.063098,google/gemini-2.5-flash,6,493,0.000002,0.001233,0.001234,Pizza ordering websites for party packs
+2025-07-02T14:46:51.586389,openai/o4-mini,5,175,0.000005,0.000770,0.000776,Pizza platforms with phone ordering
+2025-07-02T14:46:52.120878,anthropic/claude-3.5-haiku-20241022:beta,13,256,0.000010,0.001024,0.001034,Pizza platforms with college student deals
+2025-07-02T14:46:52.121929,google/gemini-2.5-flash,5,495,0.000002,0.001238,0.001239,Pizza ordering apps for families
+2025-07-02T14:46:52.737136,openai/o4-mini,6,54,0.000007,0.000238,0.000244,Pizza delivery apps with special offers
+2025-07-02T14:46:52.986504,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering for quick lunch break
+2025-07-02T14:46:53.087618,perplexity/sonar-pro,6,373,0.000018,0.005595,0.005613,Pizza delivery services with reward points
+2025-07-02T14:46:53.097089,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery with soft drinks included
+2025-07-02T14:46:53.129428,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery services with minimum wait
+2025-07-02T14:46:53.155257,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza delivery for weekend nights
+2025-07-02T14:46:53.444980,google/gemini-2.5-flash,6,499,0.000002,0.001248,0.001249,Pizza platforms with college student deals
+2025-07-02T14:46:53.512360,openai/o4-mini,6,517,0.000007,0.002275,0.002281,Pizza ordering platforms for budget meals
+2025-07-02T14:46:53.516349,anthropic/claude-3.5-haiku-20241022:beta,12,275,0.000010,0.001100,0.001110,Pizza ordering apps for families
+2025-07-02T14:46:54.057242,openai/o4-mini,6,373,0.000007,0.001641,0.001648,Pizza delivery services with minimum wait
+2025-07-02T14:46:54.789165,google/gemini-2.5-flash,6,498,0.000002,0.001245,0.001247,Pizza delivery services with reward points
+2025-07-02T14:46:54.920755,openai/o4-mini,6,331,0.000007,0.001456,0.001463,Pizza ordering websites for party packs
+2025-07-02T14:46:55.330004,openai/o4-mini,6,177,0.000007,0.000779,0.000785,Pizza services with multiple cheese types
+2025-07-02T14:46:55.396873,anthropic/claude-3.5-haiku-20241022:beta,13,311,0.000010,0.001244,0.001254,Pizza delivery services with reward points
+2025-07-02T14:46:55.478474,google/gemini-2.5-flash,6,497,0.000002,0.001243,0.001244,Pizza ordering sites with user reviews
+2025-07-02T14:46:56.188494,openai/o4-mini,5,407,0.000005,0.001791,0.001796,Pizza delivery for weekend nights
+2025-07-02T14:46:56.654244,anthropic/claude-3.5-haiku-20241022:beta,13,262,0.000010,0.001048,0.001058,Pizza ordering sites with user reviews
+2025-07-02T14:46:57.514875,openai/o4-mini,5,657,0.000005,0.002891,0.002896,Pizza delivery with flavored dips
+2025-07-02T14:46:57.597582,openai/o4-mini,6,428,0.000007,0.001883,0.001890,Pizza platforms with college student deals
+2025-07-02T14:46:57.914249,google/gemini-2.5-flash,8,500,0.000002,0.001250,0.001252,Pizza delivery apps with in-app chat
+2025-07-02T14:46:58.207843,google/gemini-2.5-flash,5,191,0.000002,0.000478,0.000479,Pizza ordering for quick snacks
+2025-07-02T14:46:58.672239,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Pizza ordering apps for families
+2025-07-02T14:46:58.757738,perplexity/sonar-pro,6,439,0.000018,0.006585,0.006603,Pizza ordering sites with user reviews
+2025-07-02T14:46:59.014847,google/gemini-2.5-flash,7,499,0.000002,0.001248,0.001250,Pizza service with real time delivery estimate
+2025-07-02T14:46:59.228832,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza platforms with college student deals
+2025-07-02T14:46:59.305886,perplexity/sonar-pro,7,500,0.000021,0.007500,0.007521,Pizza delivery apps with in-app chat
+2025-07-02T14:47:00.027308,openai/o4-mini,5,593,0.000005,0.002609,0.002615,Pizza ordering apps for families
+2025-07-02T14:47:00.391676,openai/o4-mini,6,429,0.000007,0.001888,0.001894,Pizza ordering sites with user reviews
+2025-07-02T14:47:00.743580,anthropic/claude-3.5-haiku-20241022:beta,13,292,0.000010,0.001168,0.001178,Pizza ordering for quick snacks
+2025-07-02T14:47:01.778161,anthropic/claude-3.5-haiku-20241022:beta,14,500,0.000011,0.002000,0.002011,Pizza service with real time delivery estimate
+2025-07-02T14:47:02.227172,perplexity/sonar-pro,7,491,0.000021,0.007365,0.007386,Pizza service with real time delivery estimate
+2025-07-02T14:47:03.068318,anthropic/claude-3.5-haiku-20241022:beta,15,500,0.000012,0.002000,0.002012,Pizza delivery apps with in-app chat
+2025-07-02T14:47:03.706255,openai/o4-mini,6,382,0.000007,0.001681,0.001687,Pizza delivery services with reward points
+2025-07-02T14:47:03.743090,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering platforms for budget meals
+2025-07-02T14:47:04.510321,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering apps for families
+2025-07-02T14:47:04.719948,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery apps with special offers
+2025-07-02T14:47:05.161821,perplexity/sonar-pro,5,500,0.000015,0.007500,0.007515,Pizza ordering for quick snacks
+2025-07-02T14:47:05.431704,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering sites with user reviews
+2025-07-02T14:47:05.523235,openai/o4-mini,7,475,0.000008,0.002090,0.002098,Pizza service with real time delivery estimate
+2025-07-02T14:47:07.343309,openai/o4-mini,7,280,0.000008,0.001232,0.001240,Pizza delivery apps with in-app chat
+2025-07-02T14:47:07.734441,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza service with real time delivery estimate
+2025-07-02T14:47:08.065847,openai/o4-mini,5,529,0.000005,0.002328,0.002333,Pizza ordering for quick snacks
+2025-07-02T14:47:08.669846,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery sites with multi city service
+2025-07-02T14:47:09.366179,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza platforms with phone ordering
+2025-07-02T14:47:09.806178,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery with flavored dips
+2025-07-02T14:47:09.806178,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering websites for party packs
+2025-07-02T14:47:10.252544,google/gemini-2.5-flash,6,499,0.000002,0.001248,0.001249,Pizza delivery companies with best combos
+2025-07-02T14:47:10.401386,google/gemini-2.5-flash,7,494,0.000002,0.001235,0.001237,Pizza ordering websites with region wise menus
+2025-07-02T14:47:10.413746,anthropic/claude-3.5-haiku-20241022:beta,14,275,0.000011,0.001100,0.001111,Pizza delivery companies with best combos
+2025-07-02T14:47:10.664464,perplexity/sonar-pro,7,419,0.000021,0.006285,0.006306,Pizza ordering websites with region wise menus
+2025-07-02T14:47:11.013132,google/gemini-2.5-flash,6,493,0.000002,0.001233,0.001234,Pizza platforms with wide side menu
+2025-07-02T14:47:11.602744,anthropic/claude-3.5-haiku-20241022:beta,13,268,0.000010,0.001072,0.001082,Pizza delivery apps for small groups
+2025-07-02T14:47:11.803666,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza delivery apps for small groups
+2025-07-02T14:47:11.925432,anthropic/claude-3.5-haiku-20241022:beta,13,500,0.000010,0.002000,0.002010,Pizza platforms with wide side menu
+2025-07-02T14:47:12.374306,google/gemini-2.5-flash,6,496,0.000002,0.001240,0.001242,Pizza delivery apps for small groups
+2025-07-02T14:47:12.697651,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery services with reward points
+2025-07-02T14:47:12.749472,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza platforms with college student deals
+2025-07-02T14:47:13.862377,google/gemini-2.5-flash,7,499,0.000002,0.001248,0.001250,Pizza service with half and half pizzas
+2025-07-02T14:47:13.927835,google/gemini-2.5-flash,6,220,0.000002,0.000550,0.000552,Pizza ordering for weekend hangouts
+2025-07-02T14:47:13.977621,anthropic/claude-3.5-haiku-20241022:beta,15,500,0.000012,0.002000,0.002012,Pizza ordering websites with region wise menus
+2025-07-02T14:47:14.028042,perplexity/sonar-pro,5,172,0.000015,0.002580,0.002595,Pizza platforms offering breadsticks
+2025-07-02T14:47:14.422415,openai/o4-mini,6,318,0.000007,0.001399,0.001406,Pizza delivery companies with best combos
+2025-07-02T14:47:15.119709,google/gemini-2.5-flash,6,495,0.000002,0.001238,0.001239,Pizza ordering apps with easy modifications
+2025-07-02T14:47:15.364728,google/gemini-2.5-flash,5,324,0.000002,0.000810,0.000812,Pizza platforms offering breadsticks
+2025-07-02T14:47:15.495421,perplexity/sonar-pro,7,402,0.000021,0.006030,0.006051,Pizza service with half and half pizzas
+2025-07-02T14:47:15.516807,anthropic/claude-3.5-haiku-20241022:beta,13,282,0.000010,0.001128,0.001138,Pizza ordering for weekend hangouts
+2025-07-02T14:47:15.924422,perplexity/sonar-pro,6,464,0.000018,0.006960,0.006978,Pizza ordering for weekend hangouts
+2025-07-02T14:47:16.004046,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza ordering apps with easy modifications
+2025-07-02T14:47:16.096243,anthropic/claude-3.5-haiku-20241022:beta,13,253,0.000010,0.001012,0.001022,Pizza platforms offering breadsticks
+2025-07-02T14:47:16.100793,google/gemini-2.5-flash,6,497,0.000002,0.001243,0.001244,Pizza delivery with quick response time
+2025-07-02T14:47:16.353701,anthropic/claude-3.5-haiku-20241022:beta,13,293,0.000010,0.001172,0.001182,Pizza delivery with quick response time
+2025-07-02T14:47:16.380454,anthropic/claude-3.5-haiku-20241022:beta,15,500,0.000012,0.002000,0.002012,Pizza service with half and half pizzas
+2025-07-02T14:47:16.540922,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza delivery companies with best combos
+2025-07-02T14:47:16.663871,anthropic/claude-3.5-haiku-20241022:beta,13,290,0.000010,0.001160,0.001170,Pizza ordering apps with easy modifications
+2025-07-02T14:47:16.882028,perplexity/sonar-pro,5,330,0.000015,0.004950,0.004965,Pizza delivery for weekend nights
+2025-07-02T14:47:16.976352,openai/o4-mini,6,309,0.000007,0.001360,0.001366,Pizza platforms with wide side menu
+2025-07-02T14:47:17.617727,perplexity/sonar-pro,6,384,0.000018,0.005760,0.005778,Pizza delivery with quick response time
+2025-07-02T14:47:18.000972,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery companies with best combos
+2025-07-02T14:47:18.785828,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza ordering for quick snacks
+2025-07-02T14:47:19.498635,anthropic/claude-3.5-haiku-20241022:beta,13,273,0.000010,0.001092,0.001102,Pizza delivery services with family deals
+2025-07-02T14:47:19.801271,openai/o4-mini,7,439,0.000008,0.001932,0.001939,Pizza service with half and half pizzas
+2025-07-02T14:47:20.551026,openai/o4-mini,6,467,0.000007,0.002055,0.002061,Pizza ordering apps with easy modifications
+2025-07-02T14:47:20.878320,google/gemini-2.5-flash,6,492,0.000002,0.001230,0.001232,Pizza delivery services with family deals
+2025-07-02T14:47:22.012167,perplexity/sonar-pro,6,500,0.000018,0.007500,0.007518,Pizza platforms with wide side menu
+2025-07-02T14:47:22.545338,perplexity/sonar-pro,6,337,0.000018,0.005055,0.005073,Pizza delivery services with family deals
+2025-07-02T14:47:22.561339,openai/o4-mini,5,351,0.000005,0.001544,0.001550,Pizza platforms offering breadsticks
+2025-07-02T14:47:22.570562,openai/o4-mini,6,579,0.000007,0.002548,0.002554,Pizza ordering for weekend hangouts
+2025-07-02T14:47:22.659248,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza delivery apps with in-app chat
+2025-07-02T14:47:23.553653,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering apps with easy modifications
+2025-07-02T14:47:23.578975,openai/o4-mini,7,60,0.000008,0.000264,0.000272,Pizza ordering websites with region wise menus
+2025-07-02T14:47:24.054244,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery with quick response time
+2025-07-02T14:47:24.095575,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza services with multiple cheese types
+2025-07-02T14:47:24.227517,openai/o4-mini,6,539,0.000007,0.002372,0.002378,Pizza delivery with quick response time
+2025-07-02T14:47:25.433491,openai/o4-mini,6,346,0.000007,0.001522,0.001529,Pizza delivery services with family deals
+2025-07-02T14:47:30.414003,openai/o4-mini,6,0,0.000007,0.000000,0.000007,Pizza delivery apps for small groups
+2025-07-02T14:47:31.892225,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery services with family deals
+2025-07-02T14:47:32.814139,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza platforms with wide side menu
+2025-07-02T14:47:34.663112,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Pizza ordering websites with region wise menus
+2025-07-02T14:47:35.840346,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza delivery apps for small groups
+2025-07-02T14:47:36.915886,deepseek/deepseek-r1-0528,15,500,0.000007,0.001075,0.001082,Pizza service with half and half pizzas
+2025-07-02T14:47:38.053489,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza platforms offering breadsticks
+2025-07-02T14:47:38.634235,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering for weekend hangouts
