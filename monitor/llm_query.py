@@ -18,7 +18,8 @@ def query_openai(prompt, model):
     
     client = OpenAI(
         api_key=os.getenv('OPENROUTER_API_KEY'),
-        base_url="https://openrouter.ai/api/v1"
+        base_url="https://openrouter.ai/api/v1",
+        timeout=30.0  # Set 30 second timeout
     )
 
     response = client.chat.completions.create(
@@ -26,7 +27,6 @@ def query_openai(prompt, model):
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
     )
-
     return response.choices[0].message.content
 
 def count_openai_tokens(prompt: str, model: str = "gpt-4o-mini"):
@@ -86,7 +86,7 @@ def print_model_cost(model_id, input_tokens, output_tokens, prompt):
     # Log the calculated costs
     # log_model_cost(model_id, input_tokens, output_tokens, input_cost, output_cost, total_cost, prompt)
 
-    print(f"Cost: ${total_cost:.6f} (Input: ${input_cost:.6f}, Output: ${output_cost:.6f})")
+    # print(f"Cost: ${total_cost:.6f} (Input: ${input_cost:.6f}, Output: ${output_cost:.6f})")
 
 
 def query_openrouter(prompt, model_id, max_tokens=500):

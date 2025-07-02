@@ -384,28 +384,28 @@ def brand_mention_score(request):
                 "perplexity_mention_rate": perplexity_mention_rate,
                 "deepseek_mention_rate": deepseek_mention_rate,
                 "claude_mention_rate": claude_mention_rate,
-                "segregated_prompts": {
-                    "openai": {
-                        "mentioned": openai_mentioned[:3],
-                        "not_mentioned": openai_not_mentioned[:3]
-                    },
-                    "gemini": {
-                        "mentioned": gemini_mentioned[:3],
-                        "not_mentioned": gemini_not_mentioned[:3]
-                    },
-                    "perplexity": {
-                        "mentioned": perplexity_mentioned[:3],
-                        "not_mentioned": perplexity_not_mentioned[:3]
-                    },
-                    "deepseek": {
-                        "mentioned": deepseek_mentioned[:3],
-                        "not_mentioned": deepseek_not_mentioned[:3]
-                    },
-                    "claude": {
-                        "mentioned": claude_mentioned[:3],
-                        "not_mentioned": claude_not_mentioned[:3]
-                    }
-                }
+                # "segregated_prompts": {
+                #     "openai": {
+                #         "mentioned": openai_mentioned[:3],
+                #         "not_mentioned": openai_not_mentioned[:3]
+                #     },
+                #     "gemini": {
+                #         "mentioned": gemini_mentioned[:3],
+                #         "not_mentioned": gemini_not_mentioned[:3]
+                #     },
+                #     "perplexity": {
+                #         "mentioned": perplexity_mentioned[:3],
+                #         "not_mentioned": perplexity_not_mentioned[:3]
+                #     },
+                #     "deepseek": {
+                #         "mentioned": deepseek_mentioned[:3],
+                #         "not_mentioned": deepseek_not_mentioned[:3]
+                #     },
+                #     "claude": {
+                #         "mentioned": claude_mentioned[:3],
+                #         "not_mentioned": claude_not_mentioned[:3]
+                #     }
+                # }
             })
         
         except Exception as e:
@@ -467,7 +467,7 @@ def health_check(request):
     port = os.getenv("PORT", "8000")
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
 
-@api_view(['GET'])
+@api_view(['GET', 'HEAD'])
 def home(request):
     return Response("Server is live 🚀")
 
