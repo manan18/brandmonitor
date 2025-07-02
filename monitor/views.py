@@ -386,24 +386,24 @@ def brand_mention_score(request):
                 "claude_mention_rate": claude_mention_rate,
                 "segregated_prompts": {
                     "openai": {
-                        "mentioned": openai_mentioned,
-                        "not_mentioned": openai_not_mentioned
+                        "mentioned": openai_mentioned[:3],
+                        "not_mentioned": openai_not_mentioned[:3]
                     },
                     "gemini": {
-                        "mentioned": gemini_mentioned,
-                        "not_mentioned": gemini_not_mentioned
+                        "mentioned": gemini_mentioned[:3],
+                        "not_mentioned": gemini_not_mentioned[:3]
                     },
                     "perplexity": {
-                        "mentioned": perplexity_mentioned,
-                        "not_mentioned": perplexity_not_mentioned
+                        "mentioned": perplexity_mentioned[:3],
+                        "not_mentioned": perplexity_not_mentioned[:3]
                     },
                     "deepseek": {
-                        "mentioned": deepseek_mentioned,
-                        "not_mentioned": deepseek_not_mentioned
+                        "mentioned": deepseek_mentioned[:3],
+                        "not_mentioned": deepseek_not_mentioned[:3]
                     },
                     "claude": {
-                        "mentioned": claude_mentioned,
-                        "not_mentioned": claude_not_mentioned
+                        "mentioned": claude_mentioned[:3],
+                        "not_mentioned": claude_not_mentioned[:3]
                     }
                 }
             })
