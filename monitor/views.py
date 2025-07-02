@@ -78,7 +78,10 @@ RATE_LIMITER = RateLimiter(max_requests=200, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
-    return query_openrouter(prompt, model_id)
+    max_tokens = 500
+    if model_id == "openai/o4-mini":
+        max_tokens = 1000
+    return query_openrouter(prompt, model_id, max_tokens)
 
 def process_prompt(prompt):
     """Process a single prompt with both models in parallel"""
@@ -251,27 +254,23 @@ def generate_prompts(request):
     
     NUMBER_OF_PROMPTS = int(os.getenv("NUMBER_OF_PROMPTS", "5"))
     
-    
     prompt_template = (
         f"I have a brand/product/application known as {brand}."
         f"It has a website at {website}. "
         f"{('Some custom comments about my platform are: ' + custom_comments + '. ') if custom_comments else ''}"
         f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
-        f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
+        f"(Strict instructions : In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it. Keep the prompts short and simple)"
+
     )
 
     
     prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
 
-    print(f"Generated Prompt: {prompt}")
 
     try:
-        # g_response = query_gemini(prompt, GEMINI_API_KEY)
-        o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
-        # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
+        o_response = query_openai(prompt, MODEL_IDS["openai"])
         o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
         results = {
-            # "gemini": g_response_array,
             "openai": o_response_array
         }
 
@@ -331,9 +330,6 @@ def brand_mention_score(request):
     if not brand or not prompts:
         return Response({"error": "brand and prompts are required"}, status=400)
     
-    # Estimate tokens for the entire request
-    estimated_tokens = sum(len(prompt) // 4 + 150 for prompt in prompts)
-    
     # Check if we can process immediately
     if RATE_LIMITER.can_request() and not worker_busy and request_queue.empty():
         try:
@@ -372,6 +368,13 @@ def brand_mention_score(request):
             perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
             deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
+            
+            # Segregate the prompts on the basis of mention rate
+            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention_rate(openAi_responses, openAi_mention_rate)
+            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention_rate(gemini_responses, gemini_mention_rate)
+            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention_rate(perplexity_responses, perplexity_mention_rate)
+            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention_rate(deepseek_responses, deepseek_mention_rate)
+            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention_rate(claude_responses, claude_mention_rate)
 
             return Response({
                 "status": "completed",
@@ -382,6 +385,28 @@ def brand_mention_score(request):
                 "perplexity_mention_rate": perplexity_mention_rate,
                 "deepseek_mention_rate": deepseek_mention_rate,
                 "claude_mention_rate": claude_mention_rate,
+                "segregated_prompts": {
+                    "openai": {
+                        "mentioned": openai_mentioned,
+                        "not_mentioned": openai_not_mentioned
+                    },
+                    "gemini": {
+                        "mentioned": gemini_mentioned,
+                        "not_mentioned": gemini_not_mentioned
+                    },
+                    "perplexity": {
+                        "mentioned": perplexity_mentioned,
+                        "not_mentioned": perplexity_not_mentioned
+                    },
+                    "deepseek": {
+                        "mentioned": deepseek_mentioned,
+                        "not_mentioned": deepseek_not_mentioned
+                    },
+                    "claude": {
+                        "mentioned": claude_mentioned,
+                        "not_mentioned": claude_not_mentioned
+                    }
+                }
             })
         
         except Exception as e:
@@ -423,3 +448,44 @@ def brand_mention_score(request):
 def health_check(request):
     port = os.getenv("PORT", "8000")
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
+
+def segregate_prompts_by_mention_rate(responses, mention_rate):
+    """
+    Splits prompts into two lists: those where the brand was mentioned (rate > 0)
+    and those where it wasn't (rate == 0).
+    """
+    mentioned = []
+    not_mentioned = []
+    
+    for item in responses:
+        prompt_text = item.get("prompt", "")
+        if mention_rate > 0:
+            mentioned.append(prompt_text)
+        else:
+            not_mentioned.append(prompt_text)
+    
+    return mentioned, not_mentioned
+
+@api_view(['GET'])
+def get_total_cost(request):
+    """Sum the Total Cost ($) column from the CSV log without rounding."""
+    import csv
+    import os
+
+    csv_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../model_costs.csv"))
+
+    if not os.path.exists(csv_file):
+        return Response({"error": f"CSV file not found at {csv_file}"}, status=404)
+
+    total = 0.0
+    with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            try:
+                cost_str = row.get("Total Cost ($)")
+                if cost_str is not None and cost_str != "":
+                    total += float(cost_str)
+            except (KeyError, ValueError, TypeError):
+                continue
+
+    return Response({"total_cost": total})
