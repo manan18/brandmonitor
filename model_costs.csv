@@ -498,3 +498,63 @@ ce
 2025-07-02T14:47:36.915886,deepseek/deepseek-r1-0528,15,500,0.000007,0.001075,0.001082,Pizza service with half and half pizzas
 2025-07-02T14:47:38.053489,deepseek/deepseek-r1-0528,12,500,0.000006,0.001075,0.001081,Pizza platforms offering breadsticks
 2025-07-02T14:47:38.634235,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Pizza ordering for weekend hangouts
+2025-07-02T15:55:41.632136,google/gemini-2.5-flash,7,70,0.000002,0.000175,0.000177,Affordable fast pizza delivery in my city
+2025-07-02T15:55:42.282955,anthropic/claude-3.5-haiku-20241022:beta,15,171,0.000012,0.000684,0.000696,Where can I order pizza with sides quickly
+2025-07-02T15:55:42.410268,anthropic/claude-3.5-haiku-20241022:beta,15,148,0.000012,0.000592,0.000604,Affordable fast pizza delivery in my city
+2025-07-02T15:55:43.832530,perplexity/sonar-pro,8,378,0.000024,0.005670,0.005694,Affordable fast pizza delivery in my city
+2025-07-02T15:55:44.228937,anthropic/claude-3.5-haiku-20241022:beta,17,246,0.000014,0.000984,0.000998,Best pizza delivery service with customizable toppings
+2025-07-02T15:55:44.679077,google/gemini-2.5-flash,7,490,0.000002,0.001225,0.001227,Best pizza delivery service with customizable toppings
+2025-07-02T15:55:44.853245,google/gemini-2.5-flash,8,497,0.000002,0.001243,0.001245,Where can I order pizza with sides quickly
+2025-07-02T15:55:45.721497,perplexity/sonar-pro,8,345,0.000024,0.005175,0.005199,Where can I order pizza with sides quickly
+2025-07-02T15:55:46.445654,perplexity/sonar-pro,7,457,0.000021,0.006855,0.006876,Best pizza delivery service with customizable toppings
+2025-07-02T15:55:46.635527,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Best pizza delivery service with customizable toppings
+2025-07-02T15:55:47.870381,openai/o4-mini,7,357,0.000008,0.001571,0.001579,Affordable fast pizza delivery in my city
+2025-07-02T15:55:48.286973,openai/o4-mini,7,558,0.000008,0.002455,0.002463,Best pizza delivery service with customizable toppings
+2025-07-02T15:55:51.439743,openai/o4-mini,8,379,0.000009,0.001668,0.001676,Where can I order pizza with sides quickly
+2025-07-02T15:55:59.281226,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Where can I order pizza with sides quickly
+2025-07-02T15:56:00.067609,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Affordable fast pizza delivery in my city
+2025-07-02T16:04:54.464959,perplexity/sonar-pro,8,174,0.000024,0.002610,0.002634,Where can I order pizza with sides quickly
+2025-07-02T16:04:55.405260,anthropic/claude-3.5-haiku-20241022:beta,15,134,0.000012,0.000536,0.000548,Affordable fast pizza delivery in my city
+2025-07-02T16:04:56.370670,perplexity/sonar-pro,8,306,0.000024,0.004590,0.004614,Affordable fast pizza delivery in my city
+2025-07-02T16:04:57.238084,google/gemini-2.5-flash,7,494,0.000002,0.001235,0.001237,Best pizza delivery service with customizable toppings
+2025-07-02T16:04:57.495100,google/gemini-2.5-flash,8,497,0.000002,0.001243,0.001245,Where can I order pizza with sides quickly
+2025-07-02T16:04:57.721120,anthropic/claude-3.5-haiku-20241022:beta,17,250,0.000014,0.001000,0.001014,Best pizza delivery service with customizable toppings
+2025-07-02T16:04:57.723019,google/gemini-2.5-flash,7,496,0.000002,0.001240,0.001242,Affordable fast pizza delivery in my city
+2025-07-02T16:04:57.904183,anthropic/claude-3.5-haiku-20241022:beta,15,223,0.000012,0.000892,0.000904,Where can I order pizza with sides quickly
+2025-07-02T16:04:58.419553,perplexity/sonar-pro,7,267,0.000021,0.004005,0.004026,Best pizza delivery service with customizable toppings
+2025-07-02T16:04:59.623522,openai/o4-mini,7,28,0.000008,0.000123,0.000131,Affordable fast pizza delivery in my city
+2025-07-02T16:05:02.032894,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Affordable fast pizza delivery in my city
+2025-07-02T16:05:03.071329,openai/o4-mini,8,370,0.000009,0.001628,0.001637,Where can I order pizza with sides quickly
+2025-07-02T16:05:04.683152,openai/o4-mini,7,516,0.000008,0.002270,0.002278,Best pizza delivery service with customizable toppings
+2025-07-02T16:05:06.599286,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Where can I order pizza with sides quickly
+2025-07-02T16:05:10.749984,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Best pizza delivery service with customizable toppings
+2025-07-02T16:05:50.810191,anthropic/claude-3.5-haiku-20241022:beta,15,132,0.000012,0.000528,0.000540,Affordable fast pizza delivery in my city
+2025-07-02T16:05:50.844764,perplexity/sonar-pro,8,223,0.000024,0.003345,0.003369,Where can I order pizza with sides quickly
+2025-07-02T16:05:51.583983,anthropic/claude-3.5-haiku-20241022:beta,15,145,0.000012,0.000580,0.000592,Where can I order pizza with sides quickly
+2025-07-02T16:05:53.245968,google/gemini-2.5-flash,7,499,0.000002,0.001248,0.001250,Affordable fast pizza delivery in my city
+2025-07-02T16:05:53.699442,google/gemini-2.5-flash,7,487,0.000002,0.001218,0.001220,Best pizza delivery service with customizable toppings
+2025-07-02T16:05:53.811380,perplexity/sonar-pro,7,500,0.000021,0.007500,0.007521,Best pizza delivery service with customizable toppings
+2025-07-02T16:05:54.066913,google/gemini-2.5-flash,8,497,0.000002,0.001243,0.001245,Where can I order pizza with sides quickly
+2025-07-02T16:05:54.201009,perplexity/sonar-pro,8,316,0.000024,0.004740,0.004764,Affordable fast pizza delivery in my city
+2025-07-02T16:05:54.272614,anthropic/claude-3.5-haiku-20241022:beta,17,253,0.000014,0.001012,0.001026,Best pizza delivery service with customizable toppings
+2025-07-02T16:05:56.620869,openai/o4-mini,8,316,0.000009,0.001390,0.001399,Where can I order pizza with sides quickly
+2025-07-02T16:05:57.887989,openai/o4-mini,7,347,0.000008,0.001527,0.001535,Affordable fast pizza delivery in my city
+2025-07-02T16:05:58.532568,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Where can I order pizza with sides quickly
+2025-07-02T16:05:58.541484,deepseek/deepseek-r1-0528,13,499,0.000006,0.001073,0.001079,Affordable fast pizza delivery in my city
+2025-07-02T16:05:58.794934,openai/o4-mini,7,581,0.000008,0.002556,0.002564,Best pizza delivery service with customizable toppings
+2025-07-02T16:06:01.351565,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Best pizza delivery service with customizable toppings
+2025-07-02T16:07:25.978967,anthropic/claude-3.5-haiku-20241022:beta,15,143,0.000012,0.000572,0.000584,Affordable fast pizza delivery in my city
+2025-07-02T16:07:26.174424,anthropic/claude-3.5-haiku-20241022:beta,15,162,0.000012,0.000648,0.000660,Where can I order pizza with sides quickly
+2025-07-02T16:07:26.966002,perplexity/sonar-pro,8,250,0.000024,0.003750,0.003774,Where can I order pizza with sides quickly
+2025-07-02T16:07:27.061523,perplexity/sonar-pro,7,500,0.000021,0.007500,0.007521,Best pizza delivery service with customizable toppings
+2025-07-02T16:07:27.227048,perplexity/sonar-pro,8,393,0.000024,0.005895,0.005919,Affordable fast pizza delivery in my city
+2025-07-02T16:07:27.513962,google/gemini-2.5-flash,7,496,0.000002,0.001240,0.001242,Best pizza delivery service with customizable toppings
+2025-07-02T16:07:27.604423,google/gemini-2.5-flash,8,498,0.000002,0.001245,0.001247,Where can I order pizza with sides quickly
+2025-07-02T16:07:27.889723,google/gemini-2.5-flash,7,497,0.000002,0.001243,0.001245,Affordable fast pizza delivery in my city
+2025-07-02T16:07:28.040354,anthropic/claude-3.5-haiku-20241022:beta,17,265,0.000014,0.001060,0.001074,Best pizza delivery service with customizable toppings
+2025-07-02T16:07:29.865970,openai/o4-mini,7,209,0.000008,0.000920,0.000927,Affordable fast pizza delivery in my city
+2025-07-02T16:07:30.844860,openai/o4-mini,8,353,0.000009,0.001553,0.001562,Where can I order pizza with sides quickly
+2025-07-02T16:07:32.599325,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Affordable fast pizza delivery in my city
+2025-07-02T16:07:32.932676,openai/o4-mini,7,469,0.000008,0.002064,0.002071,Best pizza delivery service with customizable toppings
+2025-07-02T16:07:41.268464,deepseek/deepseek-r1-0528,14,500,0.000007,0.001075,0.001082,Where can I order pizza with sides quickly
+2025-07-02T16:07:42.270339,deepseek/deepseek-r1-0528,13,500,0.000006,0.001075,0.001081,Best pizza delivery service with customizable toppings
