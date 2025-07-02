@@ -467,6 +467,10 @@ def health_check(request):
     port = os.getenv("PORT", "8000")
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
 
+@api_view(['GET'])
+def home(request):
+    return Response("Server is live 🚀")
+
 
 @api_view(['GET'])
 def get_total_cost(request):

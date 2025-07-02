@@ -84,9 +84,9 @@ def print_model_cost(model_id, input_tokens, output_tokens, prompt):
     total_cost = input_cost + output_cost
 
     # Log the calculated costs
-    log_model_cost(model_id, input_tokens, output_tokens, input_cost, output_cost, total_cost, prompt)
+    # log_model_cost(model_id, input_tokens, output_tokens, input_cost, output_cost, total_cost, prompt)
 
-    # print(f"Cost: ${total_cost:.6f} (Input: ${input_cost:.6f}, Output: ${output_cost:.6f})")
+    print(f"Cost: ${total_cost:.6f} (Input: ${input_cost:.6f}, Output: ${output_cost:.6f})")
 
 
 def query_openrouter(prompt, model_id, max_tokens=500):
@@ -120,7 +120,7 @@ def query_openrouter(prompt, model_id, max_tokens=500):
         # print(f"Max token: {max_tokens}")
         # print(response.choices[0].message.content)
 
-        print_model_cost(model_id, input_tokens, output_tokens, prompt)
+        # print_model_cost(model_id, input_tokens, output_tokens, prompt)
 
         return response.choices[0].message.content
 
