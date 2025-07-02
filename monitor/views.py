@@ -262,10 +262,8 @@ def generate_prompts(request):
         f"(Strict instructions : In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it. Keep the prompts short and simple)"
 
     )
-
     
     prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
-
 
     try:
         o_response = query_openai(prompt, MODEL_IDS["openai"])
@@ -369,12 +367,13 @@ def brand_mention_score(request):
             deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
             
+           
             # Segregate the prompts on the basis of mention rate
-            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention_rate(openAi_responses, openAi_mention_rate)
-            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention_rate(gemini_responses, gemini_mention_rate)
-            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention_rate(perplexity_responses, perplexity_mention_rate)
-            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention_rate(deepseek_responses, deepseek_mention_rate)
-            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention_rate(claude_responses, claude_mention_rate)
+            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
+            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
+            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
+            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
+            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
 
             return Response({
                 "status": "completed",
@@ -443,28 +442,31 @@ def brand_mention_score(request):
             "estimated_wait_seconds": wait_seconds
         }, status=202)  # 202 Accepted
         
-        
-@api_view(['GET'])
-def health_check(request):
-    port = os.getenv("PORT", "8000")
-    return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
-
-def segregate_prompts_by_mention_rate(responses, mention_rate):
+  
+def segregate_prompts_by_mention(responses, brand_name):
     """
-    Splits prompts into two lists: those where the brand was mentioned (rate > 0)
-    and those where it wasn't (rate == 0).
+    Splits prompts into those where the given brand_name
+    *actually appears* in its response vs. those where it does not.
     """
-    mentioned = []
-    not_mentioned = []
+    mentioned, not_mentioned = [], []
     
     for item in responses:
         prompt_text = item.get("prompt", "")
-        if mention_rate > 0:
+        resp       = item.get("response", "") or ""
+        if brand_name.lower() in resp.lower():
             mentioned.append(prompt_text)
         else:
             not_mentioned.append(prompt_text)
     
     return mentioned, not_mentioned
+
+
+      
+@api_view(['GET'])
+def health_check(request):
+    port = os.getenv("PORT", "8000")
+    return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
+
 
 @api_view(['GET'])
 def get_total_cost(request):
