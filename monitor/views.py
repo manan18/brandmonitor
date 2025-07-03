@@ -74,7 +74,7 @@ class RateLimiter:
 
 
 # instantiate with your OpenRouter limits
-RATE_LIMITER = RateLimiter(max_requests=200, interval_s=10.0)
+RATE_LIMITER = RateLimiter(max_requests=40, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -364,11 +364,11 @@ def brand_mention_score(request):
 
 
             # Segregate the prompts on the basis of mention rate
-            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
-            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
-            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
-            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
-            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
+            # openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
+            # gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
+            # perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
+            # deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
+            # claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
 
             return Response({
                 "status": "completed",
@@ -379,28 +379,28 @@ def brand_mention_score(request):
                 "perplexity_mention_rate": perplexity_mention_rate,
                 "deepseek_mention_rate": deepseek_mention_rate,
                 "claude_mention_rate": claude_mention_rate,
-                "segregated_prompts": {
-                    "openai": {
-                        "mentioned": openai_mentioned[:3],
-                        "not_mentioned": openai_not_mentioned[:3]
-                    },
-                    "gemini": {
-                        "mentioned": gemini_mentioned[:3],
-                        "not_mentioned": gemini_not_mentioned[:3]
-                    },
-                    "perplexity": {
-                        "mentioned": perplexity_mentioned[:3],
-                        "not_mentioned": perplexity_not_mentioned[:3]
-                    },
-                    "deepseek": {
-                        "mentioned": deepseek_mentioned[:3],
-                        "not_mentioned": deepseek_not_mentioned[:3]
-                    },
-                    "claude": {
-                        "mentioned": claude_mentioned[:3],
-                        "not_mentioned": claude_not_mentioned[:3]
-                    }
-                }
+                # "segregated_prompts": {
+                #     "openai": {
+                #         "mentioned": openai_mentioned[:3],
+                #         "not_mentioned": openai_not_mentioned[:3]
+                #     },
+                #     "gemini": {
+                #         "mentioned": gemini_mentioned[:3],
+                #         "not_mentioned": gemini_not_mentioned[:3]
+                #     },
+                #     "perplexity": {
+                #         "mentioned": perplexity_mentioned[:3],
+                #         "not_mentioned": perplexity_not_mentioned[:3]
+                #     },
+                #     "deepseek": {
+                #         "mentioned": deepseek_mentioned[:3],
+                #         "not_mentioned": deepseek_not_mentioned[:3]
+                #     },
+                #     "claude": {
+                #         "mentioned": claude_mentioned[:3],
+                #         "not_mentioned": claude_not_mentioned[:3]
+                #     }
+                # }
             })
         
         except Exception as e:
@@ -439,22 +439,22 @@ def brand_mention_score(request):
         
         
         
-def segregate_prompts_by_mention(responses, brand_name):
-    """
-    Splits prompts into those where the given brand_name
-    *actually appears* in its response vs. those where it does not.
-    """
-    mentioned, not_mentioned = [], []
+# def segregate_prompts_by_mention(responses, brand_name):
+#     """
+#     Splits prompts into those where the given brand_name
+#     *actually appears* in its response vs. those where it does not.
+#     """
+#     mentioned, not_mentioned = [], []
     
-    for item in responses:
-        prompt_text = item.get("prompt", "")
-        resp       = item.get("response", "") or ""
-        if brand_name.lower() in resp.lower():
-            mentioned.append(prompt_text)
-        else:
-            not_mentioned.append(prompt_text)
+#     for item in responses:
+#         prompt_text = item.get("prompt", "")
+#         resp       = item.get("response", "") or ""
+#         if brand_name.lower() in resp.lower():
+#             mentioned.append(prompt_text)
+#         else:
+#             not_mentioned.append(prompt_text)
     
-    return mentioned, not_mentioned
+#     return mentioned, not_mentioned
 
 
         
