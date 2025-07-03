@@ -81,7 +81,7 @@ def query_openrouter_limited(prompt: str, model_id: str) -> str:
     return query_openrouter(prompt, model_id)
 
 def process_prompt(prompt):
-    """Process a single prompt with both models in parallel"""
+    """Process a single prompt with all models in parallel"""
     try : 
         with ThreadPoolExecutor(max_workers=5) as inner_executor:
         
@@ -324,8 +324,6 @@ def brand_mention_score(request):
     if not brand or not prompts:
         return Response({"error": "brand and prompts are required"}, status=400)
     
-    # Estimate tokens for the entire request
-    estimated_tokens = sum(len(prompt) // 4 + 150 for prompt in prompts)
     
     # Check if we can process immediately
     if RATE_LIMITER.can_request() and not worker_busy and request_queue.empty():
@@ -367,12 +365,12 @@ def brand_mention_score(request):
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
 
 
-            # Segregate the prompts on the basis of mention rate
-            # openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
-            # gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
-            # perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
-            # deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
-            # claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
+            Segregate the prompts on the basis of mention rate
+            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
+            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
+            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
+            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
+            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
 
             return Response({
                 "status": "completed",
@@ -383,7 +381,7 @@ def brand_mention_score(request):
                 "perplexity_mention_rate": perplexity_mention_rate,
                 "deepseek_mention_rate": deepseek_mention_rate,
                 "claude_mention_rate": claude_mention_rate,
-                # "segregated_prompts": {
+                "segregated_prompts": {
                 #     "openai": {
                 #         "mentioned": openai_mentioned[:3],
                 #         "not_mentioned": openai_not_mentioned[:3]
@@ -404,7 +402,7 @@ def brand_mention_score(request):
                 #         "mentioned": claude_mentioned[:3],
                 #         "not_mentioned": claude_not_mentioned[:3]
                 #     }
-                # }
+                }
             })
         
         except Exception as e:
