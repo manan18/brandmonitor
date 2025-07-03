@@ -11,6 +11,7 @@ from .utils import calculate_mention_rate
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.http import StreamingHttpResponse
 
 import threading
 import time
@@ -109,12 +110,20 @@ def worker_thread():
         try:
             # Update job status to processing
             with job_lock:
-                job_tracker[job_id] = {
-                    "status": "processing",
-                    "started_at": time.time(),
-                    "progress": 0,
-                    "total_prompts": len(prompts)
-                }
+                if job_id in job_tracker:
+                    job_tracker[job_id].update({
+                        "status": "processing",
+                        "started_at": time.time(),
+                        "progress": 0,
+                        "total_prompts": len(prompts)
+                    })
+                else:
+                    job_tracker[job_id] = {
+                        "status": "processing",
+                        "started_at": time.time(),
+                        "progress": 0,
+                        "total_prompts": len(prompts)
+                    }
             
             # Process all prompts in parallel
             openAi_responses = []
@@ -165,28 +174,50 @@ def worker_thread():
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
             # Mark job as complete
             with job_lock:
-                job_tracker[job_id] = {
-                    "status": "completed",
-                    "completed_at": time.time(),
-                    "result": {
-                        "brand": brand,
-                        "total_prompts": total_prompts,
-                        "openAi_mention_rate": openAi_mention_rate,
-                        "gemini_mention_rate": gemini_mention_rate,
-                        "perplexity_mention_rate": perplexity_mention_rate,
-                        "deepseek_mention_rate": deepseek_mention_rate,
-                        "claude_mention_rate": claude_mention_rate,
+                if job_id in job_tracker:
+                    job_tracker[job_id].update({
+                        "status": "completed",
+                        "completed_at": time.time(),
+                        "result": {
+                            "brand": brand,
+                            "total_prompts": total_prompts,
+                            "openAi_mention_rate": openAi_mention_rate,
+                            "gemini_mention_rate": gemini_mention_rate,
+                            "perplexity_mention_rate": perplexity_mention_rate,
+                            "deepseek_mention_rate": deepseek_mention_rate,
+                            "claude_mention_rate": claude_mention_rate,
+                        }
+                    })
+                else:
+                    job_tracker[job_id] = {
+                        "status": "completed",
+                        "completed_at": time.time(),
+                        "result": {
+                            "brand": brand,
+                            "total_prompts": total_prompts,
+                            "openAi_mention_rate": openAi_mention_rate,
+                            "gemini_mention_rate": gemini_mention_rate,
+                            "perplexity_mention_rate": perplexity_mention_rate,
+                            "deepseek_mention_rate": deepseek_mention_rate,
+                            "claude_mention_rate": claude_mention_rate,
+                        }
                     }
-                }
                 
         except Exception as e:
             logger.error(f"Job {job_id} failed: {str(e)}")
             with job_lock:
-                job_tracker[job_id] = {
-                    "status": "failed",
-                    "completed_at": time.time(),
-                    "error": str(e)
-                }
+                if job_id in job_tracker:
+                    job_tracker[job_id].update({
+                        "status": "failed",
+                        "completed_at": time.time(),
+                        "error": str(e)
+                    })
+                else:
+                    job_tracker[job_id] = {
+                        "status": "failed",
+                        "completed_at": time.time(),
+                        "error": str(e)
+                    }
         
         finally:
             with worker_busy_lock:
@@ -338,7 +369,7 @@ def brand_mention_score(request):
             perplexity_responses = []
             deepseek_responses = []
             claude_responses = []
-            with ThreadPoolExecutor(max_workers=15) as outer_executor:
+            with ThreadPoolExecutor(max_workers=8) as outer_executor:
                 futures = {
                     outer_executor.submit(process_prompt, prompt): prompt
                     for prompt in prompts
@@ -437,13 +468,23 @@ def brand_mention_score(request):
         elapsed = now - oldest
         wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
         
-        return Response({
+         # Create response data
+        response_data = {
             "status": "queued",
             "message": "Server is busy, request queued",
             "job_id": job_id,
             "position_in_queue": position,
             "estimated_wait_seconds": wait_seconds
-        }, status=202)  # 202 Accepted
+        }
+        
+        def generate():
+            yield json.dumps(response_data)
+        
+        return StreamingHttpResponse(
+            generate(),
+            status=202,
+            content_type='application/json'
+        )
         
         
         
