@@ -51,19 +51,24 @@ def query_openrouter(prompt, model_id):
         api_key=os.getenv('OPENROUTER_API_KEY'),
         base_url="https://openrouter.ai/api/v1"
     )
+    
+    max_tokens = 500
+    if model_id == "openai/o4-mini" :
+        max_tokens = 1000
 
     try:
         response = client.chat.completions.create(
             model=model_id,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
+            temperature=0.7,
+            max_tokens=max_tokens
         )
 
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
 
-        print(f"Model: {model_id}")
-        print(f"Input tokens: {input_tokens}, Output tokens: {output_tokens}")
+        # print(f"Model: {model_id}")
+        # print(f"Input tokens: {input_tokens}, Output tokens: {output_tokens}")
 
         # Call the cost display function
         # print_model_cost(model_id, input_tokens, output_tokens)
