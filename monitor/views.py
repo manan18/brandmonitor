@@ -365,7 +365,7 @@ def brand_mention_score(request):
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
 
 
-            Segregate the prompts on the basis of mention rate
+            # Segregate the prompts on the basis of mention rate
             openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
             gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
             perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
