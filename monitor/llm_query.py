@@ -6,6 +6,22 @@ def load_config(path="config.yaml"):
     with open(path, 'r') as f:
         return yaml.safe_load(f)
 
+
+def query_openai(prompt, model):
+    
+    client = OpenAI(
+        api_key=os.getenv('OPENROUTER_API_KEY'),
+        base_url="https://openrouter.ai/api/v1",
+    )
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+    )
+    return response.choices[0].message.content
+
+
 def query_openrouter(prompt, model_id):
     """Query any model through OpenRouter API"""
     client = OpenAI(
@@ -54,7 +70,7 @@ def query_openrouter(prompt, model_id):
     
     max_tokens = 500
     if model_id == "openai/o4-mini" :
-        max_tokens = 1000
+        max_tokens = 1000   
 
     try:
         response = client.chat.completions.create(

@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-from .llm_query import query_openai, query_gemini, query_openrouter
+from .llm_query import query_openai, query_openrouter
 from .sentiment import get_sentiment
 from .theme_extraction import extract_themes
 import os
@@ -211,19 +211,9 @@ def run_query(request):
     prompt = prompt_template.format(brand=brand, competitor=competitor or "")
 
     try:
-        g_response = query_gemini(prompt, GEMINI_API_KEY)
-        o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
+        o_response = query_openai(prompt, OPENAI_MODEL)
 
         results = [
-            {
-                "brand": brand,
-                "competitor": competitor,
-                "prompt": prompt,
-                "response": g_response,
-                "sentiment": get_sentiment(g_response),
-                "themes": extract_themes(g_response),
-                "ai": "gemini"
-            },
             {
                 "brand": brand,
                 "competitor": competitor,
@@ -266,8 +256,7 @@ def generate_prompts(request):
     print(f"Generated Prompt: {prompt}")
 
     try:
-        # g_response = query_gemini(prompt, GEMINI_API_KEY)
-        o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
+        o_response = query_openai(prompt, OPENAI_MODEL)
         # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
         o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
         results = {
@@ -373,6 +362,14 @@ def brand_mention_score(request):
             deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
 
+
+            # Segregate the prompts on the basis of mention rate
+            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
+            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
+            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
+            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
+            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
+
             return Response({
                 "status": "completed",
                 "brand": brand,
@@ -382,6 +379,28 @@ def brand_mention_score(request):
                 "perplexity_mention_rate": perplexity_mention_rate,
                 "deepseek_mention_rate": deepseek_mention_rate,
                 "claude_mention_rate": claude_mention_rate,
+                "segregated_prompts": {
+                    "openai": {
+                        "mentioned": openai_mentioned[:3],
+                        "not_mentioned": openai_not_mentioned[:3]
+                    },
+                    "gemini": {
+                        "mentioned": gemini_mentioned[:3],
+                        "not_mentioned": gemini_not_mentioned[:3]
+                    },
+                    "perplexity": {
+                        "mentioned": perplexity_mentioned[:3],
+                        "not_mentioned": perplexity_not_mentioned[:3]
+                    },
+                    "deepseek": {
+                        "mentioned": deepseek_mentioned[:3],
+                        "not_mentioned": deepseek_not_mentioned[:3]
+                    },
+                    "claude": {
+                        "mentioned": claude_mentioned[:3],
+                        "not_mentioned": claude_not_mentioned[:3]
+                    }
+                }
             })
         
         except Exception as e:
@@ -419,7 +438,28 @@ def brand_mention_score(request):
         }, status=202)  # 202 Accepted
         
         
+        
+def segregate_prompts_by_mention(responses, brand_name):
+    """
+    Splits prompts into those where the given brand_name
+    *actually appears* in its response vs. those where it does not.
+    """
+    mentioned, not_mentioned = [], []
+    
+    for item in responses:
+        prompt_text = item.get("prompt", "")
+        resp       = item.get("response", "") or ""
+        if brand_name.lower() in resp.lower():
+            mentioned.append(prompt_text)
+        else:
+            not_mentioned.append(prompt_text)
+    
+    return mentioned, not_mentioned
+
+
+        
 @api_view(['GET'])
 def health_check(request):
     port = os.getenv("PORT", "8000")
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
+
