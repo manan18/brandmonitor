@@ -74,7 +74,7 @@ class RateLimiter:
 
 
 # instantiate with your OpenRouter limits
-RATE_LIMITER = RateLimiter(max_requests=40, interval_s=10.0)
+RATE_LIMITER = RateLimiter(max_requests=200, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -82,15 +82,19 @@ def query_openrouter_limited(prompt: str, model_id: str) -> str:
 
 def process_prompt(prompt):
     """Process a single prompt with both models in parallel"""
-    with ThreadPoolExecutor(max_workers=5) as inner_executor:
-      
-        gemini_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["gemini"])
-        openai_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["openai"])
-        perplexity_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["perplexity"])
-        deepseek_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["deepseek"])
-        claude_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["claude"])
-        return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
+    try : 
+        with ThreadPoolExecutor(max_workers=5) as inner_executor:
+        
+            gemini_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["gemini"])
+            openai_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["openai"])
+            perplexity_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["perplexity"])
+            deepseek_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["deepseek"])
+            claude_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["claude"])
+            return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
 
+    except Exception as e:
+        logger.error(f"process_prompt failed: {str(e)}")
+        return "", "", "", "", ""  # Return empty strings on failure
 
 def worker_thread():
     """Background worker that processes queued requests"""
@@ -119,7 +123,7 @@ def worker_thread():
             total_prompts = len(prompts)
             completed = 0
             
-            with ThreadPoolExecutor(max_workers=15) as outer_executor:
+            with ThreadPoolExecutor(max_workers=5) as outer_executor:
                 # Create futures for all prompts
                 futures = {
                     outer_executor.submit(process_prompt, prompt): idx

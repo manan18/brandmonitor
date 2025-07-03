@@ -83,14 +83,14 @@ def query_openrouter(prompt, model_id):
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
 
-        # print(f"Model: {model_id}")
-        # print(f"Input tokens: {input_tokens}, Output tokens: {output_tokens}")
+        print(f"Model: {model_id}")
+        print(f"Input tokens: {input_tokens}, Output tokens: {output_tokens}")
 
         # Call the cost display function
-        # print_model_cost(model_id, input_tokens, output_tokens)
+        print_model_cost(model_id, input_tokens, output_tokens)
 
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
 
     except Exception as e:
         print(f"Error in query: {str(e)}")
-        return None
+        return ""
