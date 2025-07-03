@@ -103,6 +103,8 @@ def worker_thread():
         # Get next job from queue
         job_id, brand, prompts = request_queue.get()
         logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
+        with worker_busy_lock:
+            worker_busy = True 
         
         try:
             # Update job status to processing
@@ -295,6 +297,7 @@ def job_status(request):
             # Estimate wait: next‐slot wait + 5s per job
             now = time.time()
             elapsed = now - (RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now)
+            position = job.get("position_in_queue", 0)
             wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
 
             response_data["estimated_wait_seconds"] = wait_seconds
@@ -382,26 +385,26 @@ def brand_mention_score(request):
                 "deepseek_mention_rate": deepseek_mention_rate,
                 "claude_mention_rate": claude_mention_rate,
                 "segregated_prompts": {
-                #     "openai": {
-                #         "mentioned": openai_mentioned[:3],
-                #         "not_mentioned": openai_not_mentioned[:3]
-                #     },
-                #     "gemini": {
-                #         "mentioned": gemini_mentioned[:3],
-                #         "not_mentioned": gemini_not_mentioned[:3]
-                #     },
-                #     "perplexity": {
-                #         "mentioned": perplexity_mentioned[:3],
-                #         "not_mentioned": perplexity_not_mentioned[:3]
-                #     },
-                #     "deepseek": {
-                #         "mentioned": deepseek_mentioned[:3],
-                #         "not_mentioned": deepseek_not_mentioned[:3]
-                #     },
-                #     "claude": {
-                #         "mentioned": claude_mentioned[:3],
-                #         "not_mentioned": claude_not_mentioned[:3]
-                #     }
+                    "openai": {
+                        "mentioned": openai_mentioned[:3],
+                        "not_mentioned": openai_not_mentioned[:3]
+                    },
+                    "gemini": {
+                        "mentioned": gemini_mentioned[:3],
+                        "not_mentioned": gemini_not_mentioned[:3]
+                    },
+                    "perplexity": {
+                        "mentioned": perplexity_mentioned[:3],
+                        "not_mentioned": perplexity_not_mentioned[:3]
+                    },
+                    "deepseek": {
+                        "mentioned": deepseek_mentioned[:3],
+                        "not_mentioned": deepseek_not_mentioned[:3]
+                    },
+                    "claude": {
+                        "mentioned": claude_mentioned[:3],
+                        "not_mentioned": claude_not_mentioned[:3]
+                    }
                 }
             })
         
