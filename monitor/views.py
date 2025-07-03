@@ -74,7 +74,7 @@ class RateLimiter:
 
 
 # instantiate with your OpenRouter limits
-RATE_LIMITER = RateLimiter(max_requests=200, interval_s=10.0)
+RATE_LIMITER = RateLimiter(max_requests=1, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -432,7 +432,10 @@ def brand_mention_score(request):
         request_queue.put((job_id, brand, prompts))
         
         # Calculate wait time estimate (5 seconds per queued job + rate limit wait)
-        wait_seconds = GEMINI_LIMITER.next_available_time() + (position * 5)
+        now = time.time()
+        oldest = RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now
+        elapsed = now - oldest
+        wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
         
         return Response({
             "status": "queued",
