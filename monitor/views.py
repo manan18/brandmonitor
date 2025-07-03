@@ -441,22 +441,22 @@ def brand_mention_score(request):
         
         
         
-# def segregate_prompts_by_mention(responses, brand_name):
-#     """
-#     Splits prompts into those where the given brand_name
-#     *actually appears* in its response vs. those where it does not.
-#     """
-#     mentioned, not_mentioned = [], []
+def segregate_prompts_by_mention(responses, brand_name):
+    """
+    Splits prompts into those where the given brand_name
+    *actually appears* in its response vs. those where it does not.
+    """
+    mentioned, not_mentioned = [], []
     
-#     for item in responses:
-#         prompt_text = item.get("prompt", "")
-#         resp       = item.get("response", "") or ""
-#         if brand_name.lower() in resp.lower():
-#             mentioned.append(prompt_text)
-#         else:
-#             not_mentioned.append(prompt_text)
+    for item in responses:
+        prompt_text = item.get("prompt", "")
+        resp       = item.get("response", "") or ""
+        if brand_name.lower() in resp.lower():
+            mentioned.append(prompt_text)
+        else:
+            not_mentioned.append(prompt_text)
     
-#     return mentioned, not_mentioned
+    return mentioned, not_mentioned
 
 
         
