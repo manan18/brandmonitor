@@ -391,7 +391,7 @@ def brand_mention_score(request):
                         deepseek_responses.append(error_resp)
                         claude_responses.append(error_resp)
             
-            # Calculate results
+            # Calculate mention rate results
             openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
             gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
             perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
