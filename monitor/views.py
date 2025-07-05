@@ -224,21 +224,25 @@ def start_worker():
 
 @api_view(['POST'])
 def brand_mention_score(request):
-    # Add worker identification
-    worker_id = f"{os.getpid()}-{threading.get_ident()}"
-    logger.info(f"Handling request on worker: {worker_id}")
+    # worker_id = f"{os.getpid()}-{threading.get_ident()}"
+    # logger.info(f"Handling request on worker: {worker_id}")
     
-    start_worker()  # Ensure worker is running
+    start_worker()
     
     brand = request.data.get("brand")
     prompts = request.data.get("prompts", [])
     if not brand or not prompts:
         return Response({"error": "brand and prompts are required"}, status=400)
     
-    # Check if we can process immediately
-    if RATE_LIMITER.can_request() and not r.exists(WORKER_BUSY_KEY) and r.llen(JOB_QUEUE_KEY) == 0:
+    # ===== ATOMIC CHECK AND SET =====
+    can_process = False
+    with r.lock('immediate_processing_lock', timeout=5):
+        if RATE_LIMITER.can_request() and not r.exists(WORKER_BUSY_KEY) and r.llen(JOB_QUEUE_KEY) == 0:
+            # Reserve processing slot atomically
+            can_process = r.set(WORKER_BUSY_KEY, "immediate", ex=300, nx=True)
+    
+    if can_process:
         try:
-            r.set(WORKER_BUSY_KEY, "immediate", ex=300)
             # Process immediately
             responses = {model: [] for model in MODEL_IDS}
             
@@ -301,10 +305,8 @@ def brand_mention_score(request):
             })
         except Exception as e:
             return Response({"status": "failed", "error": str(e)}, status=500)
-        
         finally:
             r.delete(WORKER_BUSY_KEY)
-        
     else:
         # Create job and add to queue
         job_id = str(uuid.uuid4())
@@ -343,6 +345,7 @@ def brand_mention_score(request):
         }
         
         return Response(response_data, status=202)
+
 
 @api_view(['POST'])
 def job_status(request):
