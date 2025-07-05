@@ -1,560 +1,316 @@
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-
-from .llm_query import query_openai, query_openrouter
-from .sentiment import get_sentiment
-from .theme_extraction import extract_themes
-import os
-from dotenv import load_dotenv
-from .utils import calculate_mention_rate
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from django.http import StreamingHttpResponse
-
+import redis
 import threading
 import time
 import uuid
-import queue
+import json
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-import json
+from django.http import StreamingHttpResponse
+import os
+from dotenv import load_dotenv
 
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
-MODEL_IDS = {
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Redis connection for shared state
+redis_client = redis.Redis(
+    host=os.getenv('REDIS_HOST', 'localhost'),
+    port=int(os.getenv('REDIS_PORT', 6379)),
+    password=os.getenv('REDIS_PASSWORD', None),
+    decode_responses=True
+)
+
+class DistributedRateLimiter:
+    def __init__(self, max_requests: int, interval_s: float, redis_client):
+        self.max_requests = max_requests
+        self.interval = interval_s
+        self.redis = redis_client
+        self.key_prefix = "rate_limiter"
+        self.lock_key = f"{self.key_prefix}:lock"
+        self.timestamps_key = f"{self.key_prefix}:timestamps"
+        self.active_key = f"{self.key_prefix}:active"
+        
+    def _get_lock(self, timeout=5):
+        """Acquire distributed lock"""
+        lock_id = str(uuid.uuid4())
+        end_time = time.time() + timeout
+        
+        while time.time() < end_time:
+            if self.redis.set(self.lock_key, lock_id, nx=True, ex=timeout):
+                return lock_id
+            time.sleep(0.01)
+        return None
+    
+    def _release_lock(self, lock_id):
+        """Release distributed lock"""
+        lua_script = """
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        else
+            return 0
+        end
+        """
+        self.redis.eval(lua_script, 1, self.lock_key, lock_id)
+    
+    def _prune_timestamps(self):
+        """Remove old timestamps"""
+        cutoff = time.time() - self.interval
+        self.redis.zremrangebyscore(self.timestamps_key, 0, cutoff)
+    
+    def can_process_immediately(self):
+        """Check if request can be processed immediately"""
+        lock_id = self._get_lock()
+        if not lock_id:
+            return False
+        
+        try:
+            self._prune_timestamps()
+            
+            # Count active requests and recent timestamps
+            active_count = len(self.redis.smembers(self.active_key))
+            timestamp_count = self.redis.zcard(self.timestamps_key)
+            
+            total_requests = active_count + timestamp_count
+            
+            logger.info(f"Rate limiter check - Active: {active_count}, History: {timestamp_count}, Total: {total_requests}")
+            
+            return total_requests < self.max_requests
+            
+        finally:
+            self._release_lock(lock_id)
+    
+    def acquire_slot(self, request_id):
+        """Acquire a processing slot"""
+        lock_id = self._get_lock()
+        if not lock_id:
+            raise Exception("Could not acquire lock")
+        
+        try:
+            self._prune_timestamps()
+            
+            # Check if slot is available
+            active_count = len(self.redis.smembers(self.active_key))
+            timestamp_count = self.redis.zcard(self.timestamps_key)
+            
+            if active_count + timestamp_count >= self.max_requests:
+                # Wait for slot to become available
+                return False
+            
+            # Acquire slot
+            self.redis.sadd(self.active_key, request_id)
+            logger.info(f"Acquired slot for {request_id}")
+            return True
+            
+        finally:
+            self._release_lock(lock_id)
+    
+    def release_slot(self, request_id):
+        """Release a processing slot"""
+        lock_id = self._get_lock()
+        if not lock_id:
+            return
+        
+        try:
+            # Remove from active set and add timestamp
+            self.redis.srem(self.active_key, request_id)
+            self.redis.zadd(self.timestamps_key, {str(time.time()): time.time()})
+            logger.info(f"Released slot for {request_id}")
+            
+        finally:
+            self._release_lock(lock_id)
+
+class DistributedJobTracker:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.key_prefix = "job_tracker"
+        self.queue_key = f"{self.key_prefix}:queue"
+    
+    def create_job(self, job_id, brand, prompts):
+        """Create a new job"""
+        job_data = {
+            "job_id": job_id,
+            "brand": brand,
+            "prompts": json.dumps(prompts),
+            "status": "queued",
+            "created_at": time.time(),
+            "prompt_count": len(prompts)
+        }
+        
+        # Store job data
+        self.redis.hset(f"{self.key_prefix}:jobs", job_id, json.dumps(job_data))
+        
+        # Add to queue
+        self.redis.lpush(self.queue_key, job_id)
+        
+        # Calculate position
+        position = self.redis.llen(self.queue_key)
+        job_data["position_in_queue"] = position
+        
+        self.redis.hset(f"{self.key_prefix}:jobs", job_id, json.dumps(job_data))
+        
+        return position
+    
+    def get_job(self, job_id):
+        """Get job data"""
+        job_data = self.redis.hget(f"{self.key_prefix}:jobs", job_id)
+        if job_data:
+            return json.loads(job_data)
+        return None
+    
+    def update_job(self, job_id, updates):
+        """Update job data"""
+        job_data = self.get_job(job_id)
+        if job_data:
+            job_data.update(updates)
+            self.redis.hset(f"{self.key_prefix}:jobs", job_id, json.dumps(job_data))
+    
+    def get_next_job(self):
+        """Get next job from queue"""
+        job_id = self.redis.rpop(self.queue_key)
+        if job_id:
+            job_data = self.get_job(job_id)
+            if job_data:
+                return job_id, job_data
+        return None, None
+    
+    def get_queue_length(self):
+        """Get current queue length"""
+        return self.redis.llen(self.queue_key)
+
+# Initialize distributed components
+rate_limiter = DistributedRateLimiter(max_requests=1, interval_s=10.0, redis_client=redis_client)
+job_tracker = DistributedJobTracker(redis_client)
+
+def process_job_worker():
+    """Background worker for processing jobs"""
+    while True:
+        try:
+            job_id, job_data = job_tracker.get_next_job()
+            
+            if not job_id:
+                time.sleep(1)  # Wait before checking again
+                continue
+            
+            logger.info(f"Processing job {job_id}")
+            
+            # Update job status
+            job_tracker.update_job(job_id, {
+                "status": "processing",
+                "started_at": time.time()
+            })
+            
+            # Acquire rate limiter slot
+            if not rate_limiter.acquire_slot(job_id):
+                # Put job back in queue if can't acquire slot
+                job_tracker.redis.rpush(job_tracker.queue_key, job_id)
+                job_tracker.update_job(job_id, {"status": "queued"})
+                time.sleep(1)
+                continue
+            
+            try:
+                # Process the job
+                brand = job_data["brand"]
+                prompts = json.loads(job_data["prompts"])
+                
+                # Your existing processing logic here
+                result = process_brand_mention_job(brand, prompts, job_id)
+                
+                # Update job with results
+                job_tracker.update_job(job_id, {
+                    "status": "completed",
+                    "completed_at": time.time(),
+                    "result": result
+                })
+                
+            except Exception as e:
+                logger.error(f"Error processing job {job_id}: {str(e)}")
+                job_tracker.update_job(job_id, {
+                    "status": "failed",
+                    "completed_at": time.time(),
+                    "error": str(e)
+                })
+            
+            finally:
+                # Always release the slot
+                rate_limiter.release_slot(job_id)
+                
+        except Exception as e:
+            logger.error(f"Worker error: {str(e)}")
+            time.sleep(1)
+
+def process_brand_mention_job(brand, prompts, job_id):
+    """Process brand mention job with progress tracking"""
+    from .llm_query import query_openrouter
+    from .utils import calculate_mention_rate
+    
+    MODEL_IDS = {
         "gemini": "google/gemini-2.5-flash",
         "openai": "openai/o4-mini",
         "perplexity": "perplexity/sonar-pro",
         "deepseek": "deepseek/deepseek-r1-0528",
         "claude": "anthropic/claude-3.5-haiku-20241022:beta"
     }
-# Configure logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-
-# Global request queue and job tracker
-request_queue = queue.Queue()
-job_tracker = {}
-job_lock = threading.Lock()
-worker_busy = False
-worker_busy_lock = threading.Lock()
-
-
-class RateLimiter:
-    def __init__(self, max_requests: int, interval_s: float):
-        self.max_requests = max_requests
-        self.interval = interval_s
-        self.request_timestamps = []
-        self.lock = threading.Lock()
-
-    def _prune(self):
-        cutoff = time.time() - self.interval
-        while self.request_timestamps and self.request_timestamps[0] < cutoff:
-            self.request_timestamps.pop(0)
-
-    def wait_for_slot(self):
-        while True:
-            with self.lock:
-                self._prune()
-                if len(self.request_timestamps) < self.max_requests:
-                    self.request_timestamps.append(time.time())
-                    return
-            time.sleep(0.05)
-            
-    def can_request(self) -> bool:
-        with self.lock:
-            self._prune()
-            return len(self.request_timestamps) < self.max_requests
-
-
-# instantiate with your OpenRouter limits
-# RATE_LIMITER = RateLimiter(max_requests=100, interval_s=60.0)
-RATE_LIMITER = RateLimiter(max_requests=1, interval_s=10.0)
-
-def query_openrouter_limited(prompt: str, model_id: str) -> str:
-    RATE_LIMITER.wait_for_slot()
-    return query_openrouter(prompt, model_id)
-
-def process_prompt(prompt):
-    """Process a single prompt with all models in parallel"""
-    try : 
-        with ThreadPoolExecutor(max_workers=5) as inner_executor:
-        
-            gemini_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["gemini"])
-            openai_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["openai"])
-            perplexity_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["perplexity"])
-            deepseek_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["deepseek"])
-            claude_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["claude"])
-            return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
-
-    except Exception as e:
-        logger.error(f"process_prompt failed: {str(e)}")
-        return "", "", "", "", ""  # Return empty strings on failure
-
-def worker_thread():
-    """Background worker that processes queued requests"""
-    global worker_busy
-    while True:
-        # Get next job from queue
-        job_id, brand, prompts = request_queue.get()
-        logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
-        with worker_busy_lock:
-            worker_busy = True 
-        
+    
+    responses = {model: [] for model in MODEL_IDS.keys()}
+    
+    for idx, prompt in enumerate(prompts):
         try:
-            # Update job status to processing
-            with job_lock:
-                if job_id in job_tracker:
-                    job_tracker[job_id].update({
-                        "status": "processing",
-                        "started_at": time.time(),
-                        "progress": 0,
-                        "total_prompts": len(prompts)
-                    })
-                else:
-                    job_tracker[job_id] = {
-                        "status": "processing",
-                        "started_at": time.time(),
-                        "progress": 0,
-                        "total_prompts": len(prompts)
-                    }
-            
-            # Process all prompts in parallel
-            openAi_responses = []
-            gemini_responses = []
-            perplexity_responses = []
-            deepseek_responses = []
-            claude_responses = []
-            total_prompts = len(prompts)
-            completed = 0
-            
-            with ThreadPoolExecutor(max_workers=5) as outer_executor:
-                # Create futures for all prompts
-                futures = {
-                    outer_executor.submit(process_prompt, prompt): idx
-                    for idx, prompt in enumerate(prompts)
-                }
+            # Process each model sequentially
+            for model_name, model_id in MODEL_IDS.items():
+                response = query_openrouter(prompt, model_id)
+                responses[model_name].append({
+                    "prompt": prompt,
+                    "response": response
+                })
                 
-                # Process completed futures as they come in
-                for future in as_completed(futures):
-                    idx = futures[future]
-                    try:
-                        g_response, o_response, p_response, d_future, c_future = future.result()
-                        openAi_responses.append({"prompt": prompts[idx], "response": o_response})
-                        gemini_responses.append({"prompt": prompts[idx], "response": g_response})
-                        perplexity_responses.append({"prompt": prompts[idx], "response": p_response})
-                        deepseek_responses.append({"prompt": prompts[idx], "response": d_future})
-                        claude_responses.append({"prompt": prompts[idx], "response": c_future})
-                    except Exception as e:
-                        error_msg = f"Error: {str(e)}"
-                        openAi_responses.append({"prompt": prompts[idx], "response": error_msg})
-                        gemini_responses.append({"prompt": prompts[idx], "response": error_msg})
-                        perplexity_responses.append({"prompt": prompts[idx], "response": error_msg})
-                        deepseek_responses.append({"prompt": prompts[idx], "response": error_msg})
-                        claude_responses.append({"prompt": prompts[idx], "response": error_msg})
-                        logger.error(f"Error processing prompt: {str(e)}")
-                    
-                    # Update progress
-                    completed += 1
-                    with job_lock:
-                        if job_id in job_tracker:
-                            job_tracker[job_id]["progress"] = (completed / total_prompts) * 100
+                # Small delay to respect rate limits
+                time.sleep(0.5)
             
-            # Calculate results
-            openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
-            gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
-            perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
-            deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
-            claude_mention_rate = calculate_mention_rate(claude_responses, brand)
+            # Update progress
+            progress = ((idx + 1) / len(prompts)) * 100
+            job_tracker.update_job(job_id, {"progress": progress})
             
-            # Segregate the prompts
-            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
-            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
-            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
-            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
-            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
-
-            
-            # Mark job as complete
-            with job_lock:
-                if job_id in job_tracker:
-                    job_tracker[job_id].update({
-                        "status": "completed",
-                        "completed_at": time.time(),
-                        "result": {
-                            "brand": brand,
-                            "total_prompts": total_prompts,
-                            "openAi_mention_rate": openAi_mention_rate,
-                            "gemini_mention_rate": gemini_mention_rate,
-                            "perplexity_mention_rate": perplexity_mention_rate,
-                            "deepseek_mention_rate": deepseek_mention_rate,
-                            "claude_mention_rate": claude_mention_rate,
-                            "segregated_prompts": {
-                                "openai": {
-                                    "mentioned": openai_mentioned[:3],
-                                    "not_mentioned": openai_not_mentioned[:3]
-                                },
-                                "gemini": {
-                                    "mentioned": gemini_mentioned[:3],
-                                    "not_mentioned": gemini_not_mentioned[:3]
-                                },
-                                "perplexity": {
-                                    "mentioned": perplexity_mentioned[:3],
-                                    "not_mentioned": perplexity_not_mentioned[:3]
-                                },
-                                "deepseek": {
-                                    "mentioned": deepseek_mentioned[:3],
-                                    "not_mentioned": deepseek_not_mentioned[:3]
-                                },
-                                "claude": {
-                                    "mentioned": claude_mentioned[:3],
-                                    "not_mentioned": claude_not_mentioned[:3]
-                                }
-                            }
-
-                        }
-                    })
-                else:
-                    job_tracker[job_id] = {
-                        "status": "completed",
-                        "completed_at": time.time(),
-                        "result": {
-                            "brand": brand,
-                            "total_prompts": total_prompts,
-                            "openAi_mention_rate": openAi_mention_rate,
-                            "gemini_mention_rate": gemini_mention_rate,
-                            "perplexity_mention_rate": perplexity_mention_rate,
-                            "deepseek_mention_rate": deepseek_mention_rate,
-                            "claude_mention_rate": claude_mention_rate,
-                            "segregated_prompts": {
-                                "openai": {
-                                    "mentioned": openai_mentioned[:3],
-                                    "not_mentioned": openai_not_mentioned[:3]
-                                },
-                                "gemini": {
-                                    "mentioned": gemini_mentioned[:3],
-                                    "not_mentioned": gemini_not_mentioned[:3]
-                                },
-                                "perplexity": {
-                                    "mentioned": perplexity_mentioned[:3],
-                                    "not_mentioned": perplexity_not_mentioned[:3]
-                                },
-                                "deepseek": {
-                                    "mentioned": deepseek_mentioned[:3],
-                                    "not_mentioned": deepseek_not_mentioned[:3]
-                                },
-                                "claude": {
-                                    "mentioned": claude_mentioned[:3],
-                                    "not_mentioned": claude_not_mentioned[:3]
-                                }
-                            }
-
-                        }
-                    }
-                
         except Exception as e:
-            logger.error(f"Job {job_id} failed: {str(e)}")
-            with job_lock:
-                if job_id in job_tracker:
-                    job_tracker[job_id].update({
-                        "status": "failed",
-                        "completed_at": time.time(),
-                        "error": str(e)
-                    })
-                else:
-                    job_tracker[job_id] = {
-                        "status": "failed",
-                        "completed_at": time.time(),
-                        "error": str(e)
-                    }
-        
-        finally:
-            with worker_busy_lock:
-                worker_busy = False
-            request_queue.task_done()
-            logger.info(f"Finished job {job_id}")
-
-# Start worker thread on first request
-worker = None
-def start_worker():
-    global worker
-    if worker is None or not worker.is_alive():
-        worker = threading.Thread(target=worker_thread, daemon=True)
-        worker.start()
-        logger.info("Started worker thread")
-
-
-
-@api_view(['POST'])
-def run_query(request):
-    brand = request.data.get('brand')
-    competitor = request.data.get('competitor')
-    prompt_template = request.data.get('prompt')
-
-    if not brand or not prompt_template:
-        return Response({"error": "brand and prompt are required"}, status=status.HTTP_400_BAD_REQUEST)
-
-    prompt = prompt_template.format(brand=brand, competitor=competitor or "")
-
-    try:
-        o_response = query_openai(prompt, OPENAI_MODEL)
-
-        results = [
-            {
-                "brand": brand,
-                "competitor": competitor,
-                "prompt": prompt,
-                "response": o_response,
-                "sentiment": get_sentiment(o_response),
-                "themes": extract_themes(o_response),
-                "ai": "openai"
-            }
-        ]
-
-        return Response({"results": results})
-
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['POST'])
-def generate_prompts(request):
-    brand = request.data.get('brand')
-    website = request.data.get('website')
-    custom_comments = request.data.get('custom_comments', "")
-   
-    if not brand or not website:
-        return Response({"error": "Brand and Website are required"}, status=status.HTTP_400_BAD_REQUEST)
+            logger.error(f"Error processing prompt {idx}: {str(e)}")
+            # Add error responses
+            for model_name in MODEL_IDS.keys():
+                responses[model_name].append({
+                    "prompt": prompt,
+                    "response": f"Error: {str(e)}"
+                })
     
-    NUMBER_OF_PROMPTS = int(os.getenv("NUMBER_OF_PROMPTS", "5"))
+    # Calculate mention rates
+    mention_rates = {}
+    segregated_prompts = {}
     
-    
-    prompt_template = (
-        f"I have a brand/product/application known as {brand}."
-        f"It has a website at {website}. "
-        f"{('Some custom comments about my platform are: ' + custom_comments + '. ') if custom_comments else ''}"
-        f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
-        f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
-    )
-
-    
-    prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
-
-    print(f"Generated Prompt: {prompt}")
-
-    try:
-        o_response = query_openai(prompt, OPENAI_MODEL)
-        # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
-        o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
-        results = {
-            # "gemini": g_response_array,
-            "openai": o_response_array
+    for model_name, model_responses in responses.items():
+        mention_rates[f"{model_name}_mention_rate"] = calculate_mention_rate(model_responses, brand)
+        mentioned, not_mentioned = segregate_prompts_by_mention(model_responses, brand)
+        segregated_prompts[model_name] = {
+            "mentioned": mentioned[:3],
+            "not_mentioned": not_mentioned[:3]
         }
-
-        return Response({"results": results})
-
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-@api_view(['POST'])
-def job_status(request):
-    job_id = request.data.get("job_id")
-    print(f"Job ID: {job_id}")
-    with job_lock:
-        job = job_tracker.get(job_id)
-    
-    if not job:
-        return Response({"error": "Job not found"}, status=404)
-    
-    response_data = {
-        "job_id": job_id,
-        "status": job["status"],
-        "created_at": job.get("created_at"),
+    return {
+        "brand": brand,
+        "total_prompts": len(prompts),
+        **mention_rates,
+        "segregated_prompts": segregated_prompts
     }
-    
-    if job["status"] == "queued":
-        response_data["position_in_queue"] = job.get("position_in_queue", 0)
-        # Recalculate estimated wait time
-        if "position_in_queue" in job:
-            # Estimate wait: next‐slot wait + 5s per job
-            now = time.time()
-            elapsed = now - (RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now)
-            position = job.get("position_in_queue", 0)
-            wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
 
-            response_data["estimated_wait_seconds"] = wait_seconds
-    
-    elif job["status"] == "processing":
-        response_data["started_at"] = job.get("started_at")
-        response_data["progress"] = f"{job.get('progress', 0):.1f}%"
-        response_data["processed"] = int(job.get('progress', 0) * job.get("total_prompts", 0) / 100)
-        response_data["total_prompts"] = job.get("total_prompts", 0)
-    
-    elif job["status"] == "completed":
-        response_data["completed_at"] = job.get("completed_at")
-        response_data["data"] = job.get("result", {})
-    
-    elif job["status"] == "failed":
-        response_data["completed_at"] = job.get("completed_at")
-        response_data["error"] = job.get("error", "Unknown error")
-    
-    return Response(response_data)
-
-@api_view(['POST'])
-def brand_mention_score(request):
-    start_worker()  # Ensure worker is running
-    
-    brand = request.data.get("brand")
-    prompts = request.data.get("prompts", [])
-    if not brand or not prompts:
-        return Response({"error": "brand and prompts are required"}, status=400)
-    
-    
-    # Check if we can process immediately
-    if RATE_LIMITER.can_request() and not worker_busy and request_queue.empty():
-        try:
-            
-            # Process immediately with parallel execution
-            openAi_responses = []
-            gemini_responses = []
-            perplexity_responses = []
-            deepseek_responses = []
-            claude_responses = []
-            with ThreadPoolExecutor(max_workers=8) as outer_executor:
-                futures = {
-                    outer_executor.submit(process_prompt, prompt): prompt
-                    for prompt in prompts
-                }
-                
-                for future in as_completed(futures):
-                    try:
-                        g_response, o_response, p_response, d_response, c_response = future.result()
-                        openAi_responses.append({"prompt": futures[future], "response": o_response})
-                        gemini_responses.append({"prompt": futures[future], "response": g_response})
-                        perplexity_responses.append({"prompt": futures[future], "response": p_response})
-                        deepseek_responses.append({"prompt": futures[future], "response": d_response})
-                        claude_responses.append({"prompt": futures[future], "response": c_response})
-                    except Exception as e:
-                        error_resp = {"prompt": futures[future], "response": f"Error: {str(e)}"}
-                        openAi_responses.append(error_resp)
-                        gemini_responses.append(error_resp)
-                        perplexity_responses.append(error_resp)
-                        deepseek_responses.append(error_resp)
-                        claude_responses.append(error_resp)
-            
-            # Calculate results
-            openAi_mention_rate = calculate_mention_rate(openAi_responses, brand)
-            gemini_mention_rate = calculate_mention_rate(gemini_responses, brand)
-            perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
-            deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
-            claude_mention_rate = calculate_mention_rate(claude_responses, brand)
-
-
-            # Segregate the prompts on the basis of mention rate
-            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
-            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
-            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
-            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
-            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
-
-            return Response({
-                "status": "completed",
-                "brand": brand,
-                "total_prompts": len(prompts),
-                "openAi_mention_rate": openAi_mention_rate,
-                "gemini_mention_rate": gemini_mention_rate,
-                "perplexity_mention_rate": perplexity_mention_rate,
-                "deepseek_mention_rate": deepseek_mention_rate,
-                "claude_mention_rate": claude_mention_rate,
-                "segregated_prompts": {
-                    "openai": {
-                        "mentioned": openai_mentioned[:3],
-                        "not_mentioned": openai_not_mentioned[:3]
-                    },
-                    "gemini": {
-                        "mentioned": gemini_mentioned[:3],
-                        "not_mentioned": gemini_not_mentioned[:3]
-                    },
-                    "perplexity": {
-                        "mentioned": perplexity_mentioned[:3],
-                        "not_mentioned": perplexity_not_mentioned[:3]
-                    },
-                    "deepseek": {
-                        "mentioned": deepseek_mentioned[:3],
-                        "not_mentioned": deepseek_not_mentioned[:3]
-                    },
-                    "claude": {
-                        "mentioned": claude_mentioned[:3],
-                        "not_mentioned": claude_not_mentioned[:3]
-                    }
-                }
-            })
-        
-        except Exception as e:
-            return Response({"status": "failed", "error": str(e)}, status=500)
-    
-    else:
-        # Create job and add to queue
-        job_id = str(uuid.uuid4())
-        
-        with worker_busy_lock:
-            is_busy = worker_busy
-            queue_size = request_queue.qsize()
-            
-        with job_lock:
-            position = queue_size + (1 if is_busy else 0)
-            job_tracker[job_id] = {
-                "status": "queued",
-                "created_at": time.time(),
-                "brand": brand,
-                "prompt_count": len(prompts),
-                "position_in_queue": position
-            }
-        
-        request_queue.put((job_id, brand, prompts))
-        
-        # Calculate wait time estimate (5 seconds per queued job + rate limit wait)
-        now = time.time()
-        oldest = RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now
-        elapsed = now - oldest
-        wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
-        
-         # Create response data
-        response_data = {
-            "status": "queued",
-            "message": "Server is busy, request queued",
-            "job_id": job_id,
-            "position_in_queue": position,
-            "estimated_wait_seconds": wait_seconds
-        }
-        
-        def generate():
-            yield json.dumps(response_data)
-        
-        return StreamingHttpResponse(
-            generate(),
-            status=202,
-            content_type='application/json'
-        )
-        
-        
 def segregate_prompts_by_mention(responses, brand_name):
-    """
-    Splits prompts into those where the given brand_name
-    *actually appears* in its response vs. those where it does not.
-    """
+    """Segregate prompts by brand mention"""
     mentioned, not_mentioned = [], []
     
     for item in responses:
         prompt_text = item.get("prompt", "")
-        resp       = item.get("response", "") or ""
+        resp = item.get("response", "") or ""
         if brand_name.lower() in resp.lower():
             mentioned.append(prompt_text)
         else:
@@ -562,10 +318,99 @@ def segregate_prompts_by_mention(responses, brand_name):
     
     return mentioned, not_mentioned
 
+# Start worker thread
+worker_thread = threading.Thread(target=process_job_worker, daemon=True)
+worker_thread.start()
+logger.info("Distributed worker started")
 
-        
+@api_view(['POST'])
+def brand_mention_score(request):
+    """Handle brand mention score requests with distributed rate limiting"""
+    
+    brand = request.data.get("brand")
+    prompts = request.data.get("prompts", [])
+    
+    if not brand or not prompts:
+        return Response({"error": "brand and prompts are required"}, status=400)
+    
+    # Check if can process immediately
+    can_process = rate_limiter.can_process_immediately()
+    queue_length = job_tracker.get_queue_length()
+    
+    logger.info(f"Request check - Can process: {can_process}, Queue length: {queue_length}")
+    
+    if can_process and queue_length == 0:
+        # Try to acquire slot immediately
+        request_id = str(uuid.uuid4())
+        if rate_limiter.acquire_slot(request_id):
+            try:
+                # Process immediately
+                logger.info(f"Processing request {request_id} immediately")
+                result = process_brand_mention_job(brand, prompts, request_id)
+                
+                return Response({
+                    "status": "completed",
+                    **result
+                })
+            
+            except Exception as e:
+                logger.error(f"Immediate processing failed: {str(e)}")
+                return Response({"status": "failed", "error": str(e)}, status=500)
+            
+            finally:
+                rate_limiter.release_slot(request_id)
+    
+    # Queue the request
+    job_id = str(uuid.uuid4())
+    position = job_tracker.create_job(job_id, brand, prompts)
+    
+    # Calculate estimated wait time
+    estimated_wait = position * len(prompts) * 50  # 50 seconds per prompt
+    
+    response_data = {
+        "status": "queued",
+        "message": "Request queued for processing",
+        "job_id": job_id,
+        "position_in_queue": position,
+        "estimated_wait_seconds": estimated_wait,
+        "estimated_wait_minutes": estimated_wait / 60
+    }
+    
+    logger.info(f"Job {job_id} queued at position {position}")
+    
+    return StreamingHttpResponse(
+        [json.dumps(response_data)],
+        status=202,
+        content_type='application/json'
+    )
+
+@api_view(['POST'])
+def job_status(request):
+    """Get job status"""
+    job_id = request.data.get("job_id")
+    
+    if not job_id:
+        return Response({"error": "job_id is required"}, status=400)
+    
+    job_data = job_tracker.get_job(job_id)
+    
+    if not job_data:
+        return Response({"error": "Job not found"}, status=404)
+    
+    return Response(job_data)
+
 @api_view(['GET'])
 def health_check(request):
-    port = os.getenv("PORT", "8000")
-    return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
-
+    """Health check endpoint"""
+    try:
+        # Test Redis connection
+        redis_client.ping()
+        redis_status = "connected"
+    except:
+        redis_status = "disconnected"
+    
+    return Response({
+        "status": "ok",
+        "redis": redis_status,
+        "queue_length": job_tracker.get_queue_length()
+    })
