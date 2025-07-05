@@ -1,316 +1,390 @@
 import redis
+import json
+import os
+import logging
 import threading
 import time
 import uuid
-import json
-import logging
-from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
 from django.http import StreamingHttpResponse
-import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
+# Import your other modules here
+from .llm_query import query_openrouter
+from .utils import calculate_mention_rate
+
 load_dotenv()
+
+# Redis configuration
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+r = redis.Redis.from_url(REDIS_URL)
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Redis connection for shared state
-redis_client = redis.Redis(
-    host=os.getenv('REDIS_HOST', 'localhost'),
-    port=int(os.getenv('REDIS_PORT', 6379)),
-    password=os.getenv('REDIS_PASSWORD', None),
-    decode_responses=True
-)
+# Constants
+MODEL_IDS = {
+    "gemini": "google/gemini-2.5-flash",
+    "openai": "openai/o4-mini",
+    "perplexity": "perplexity/sonar-pro",
+    "deepseek": "deepseek/deepseek-r1-0528",
+    "claude": "anthropic/claude-3.5-haiku-20241022:beta"
+}
 
-class DistributedRateLimiter:
-    def __init__(self, max_requests: int, interval_s: float, redis_client):
+# Redis keys
+JOB_QUEUE_KEY = "job_queue"
+JOB_TRACKER_PREFIX = "job_tracker:"
+WORKER_BUSY_KEY = "worker_busy"
+RATE_LIMITER_KEY = "rate_limiter"
+
+class RedisRateLimiter:
+    def __init__(self, max_requests: int, interval_s: float):
         self.max_requests = max_requests
         self.interval = interval_s
-        self.redis = redis_client
-        self.key_prefix = "rate_limiter"
-        self.lock_key = f"{self.key_prefix}:lock"
-        self.timestamps_key = f"{self.key_prefix}:timestamps"
-        self.active_key = f"{self.key_prefix}:active"
-        
-    def _get_lock(self, timeout=5):
-        """Acquire distributed lock"""
-        lock_id = str(uuid.uuid4())
-        end_time = time.time() + timeout
-        
-        while time.time() < end_time:
-            if self.redis.set(self.lock_key, lock_id, nx=True, ex=timeout):
-                return lock_id
-            time.sleep(0.01)
-        return None
-    
-    def _release_lock(self, lock_id):
-        """Release distributed lock"""
-        lua_script = """
-        if redis.call("get", KEYS[1]) == ARGV[1] then
-            return redis.call("del", KEYS[1])
-        else
-            return 0
-        end
-        """
-        self.redis.eval(lua_script, 1, self.lock_key, lock_id)
-    
-    def _prune_timestamps(self):
-        """Remove old timestamps"""
-        cutoff = time.time() - self.interval
-        self.redis.zremrangebyscore(self.timestamps_key, 0, cutoff)
-    
-    def can_process_immediately(self):
-        """Check if request can be processed immediately"""
-        lock_id = self._get_lock()
-        if not lock_id:
-            return False
-        
-        try:
-            self._prune_timestamps()
-            
-            # Count active requests and recent timestamps
-            active_count = len(self.redis.smembers(self.active_key))
-            timestamp_count = self.redis.zcard(self.timestamps_key)
-            
-            total_requests = active_count + timestamp_count
-            
-            logger.info(f"Rate limiter check - Active: {active_count}, History: {timestamp_count}, Total: {total_requests}")
-            
-            return total_requests < self.max_requests
-            
-        finally:
-            self._release_lock(lock_id)
-    
-    def acquire_slot(self, request_id):
-        """Acquire a processing slot"""
-        lock_id = self._get_lock()
-        if not lock_id:
-            raise Exception("Could not acquire lock")
-        
-        try:
-            self._prune_timestamps()
-            
-            # Check if slot is available
-            active_count = len(self.redis.smembers(self.active_key))
-            timestamp_count = self.redis.zcard(self.timestamps_key)
-            
-            if active_count + timestamp_count >= self.max_requests:
-                # Wait for slot to become available
-                return False
-            
-            # Acquire slot
-            self.redis.sadd(self.active_key, request_id)
-            logger.info(f"Acquired slot for {request_id}")
-            return True
-            
-        finally:
-            self._release_lock(lock_id)
-    
-    def release_slot(self, request_id):
-        """Release a processing slot"""
-        lock_id = self._get_lock()
-        if not lock_id:
-            return
-        
-        try:
-            # Remove from active set and add timestamp
-            self.redis.srem(self.active_key, request_id)
-            self.redis.zadd(self.timestamps_key, {str(time.time()): time.time()})
-            logger.info(f"Released slot for {request_id}")
-            
-        finally:
-            self._release_lock(lock_id)
 
-class DistributedJobTracker:
-    def __init__(self, redis_client):
-        self.redis = redis_client
-        self.key_prefix = "job_tracker"
-        self.queue_key = f"{self.key_prefix}:queue"
-    
-    def create_job(self, job_id, brand, prompts):
-        """Create a new job"""
-        job_data = {
-            "job_id": job_id,
-            "brand": brand,
-            "prompts": json.dumps(prompts),
-            "status": "queued",
-            "created_at": time.time(),
-            "prompt_count": len(prompts)
-        }
-        
-        # Store job data
-        self.redis.hset(f"{self.key_prefix}:jobs", job_id, json.dumps(job_data))
-        
-        # Add to queue
-        self.redis.lpush(self.queue_key, job_id)
-        
-        # Calculate position
-        position = self.redis.llen(self.queue_key)
-        job_data["position_in_queue"] = position
-        
-        self.redis.hset(f"{self.key_prefix}:jobs", job_id, json.dumps(job_data))
-        
-        return position
-    
-    def get_job(self, job_id):
-        """Get job data"""
-        job_data = self.redis.hget(f"{self.key_prefix}:jobs", job_id)
-        if job_data:
-            return json.loads(job_data)
-        return None
-    
-    def update_job(self, job_id, updates):
-        """Update job data"""
-        job_data = self.get_job(job_id)
-        if job_data:
-            job_data.update(updates)
-            self.redis.hset(f"{self.key_prefix}:jobs", job_id, json.dumps(job_data))
-    
-    def get_next_job(self):
-        """Get next job from queue"""
-        job_id = self.redis.rpop(self.queue_key)
-        if job_id:
-            job_data = self.get_job(job_id)
-            if job_data:
-                return job_id, job_data
-        return None, None
-    
-    def get_queue_length(self):
-        """Get current queue length"""
-        return self.redis.llen(self.queue_key)
+    def wait_for_slot(self):
+        while True:
+            current_time = time.time()
+            # Remove old timestamps
+            r.zremrangebyscore(RATE_LIMITER_KEY, "-inf", current_time - self.interval)
+            
+            # Count current requests
+            count = r.zcount(RATE_LIMITER_KEY, current_time - self.interval, current_time)
+            
+            if count < self.max_requests:
+                r.zadd(RATE_LIMITER_KEY, {str(uuid.uuid4()): current_time})
+                return
+            time.sleep(0.05)
+            
+    def can_request(self) -> bool:
+        current_time = time.time()
+        r.zremrangebyscore(RATE_LIMITER_KEY, "-inf", current_time - self.interval)
+        return r.zcount(RATE_LIMITER_KEY, current_time - self.interval, current_time) < self.max_requests
 
-# Initialize distributed components
-rate_limiter = DistributedRateLimiter(max_requests=1, interval_s=10.0, redis_client=redis_client)
-job_tracker = DistributedJobTracker(redis_client)
+# Initialize rate limiter
+RATE_LIMITER = RedisRateLimiter(max_requests=1, interval_s=10.0)
 
-def process_job_worker():
-    """Background worker for processing jobs"""
+def query_openrouter_limited(prompt: str, model_id: str) -> str:
+    RATE_LIMITER.wait_for_slot()
+    return query_openrouter(prompt, model_id)
+
+def process_prompt(prompt):
+    """Process a single prompt with all models in parallel"""
+    try: 
+        with ThreadPoolExecutor(max_workers=5) as inner_executor:
+            futures = {
+                model: inner_executor.submit(query_openrouter_limited, prompt, model_id)
+                for model, model_id in MODEL_IDS.items()
+            }
+            results = {model: future.result() for model, future in futures.items()}
+            return results
+    except Exception as e:
+        logger.error(f"process_prompt failed: {str(e)}")
+        return {model: "" for model in MODEL_IDS}
+
+def worker_thread():
+    """Background worker that processes queued requests from Redis"""
     while True:
         try:
-            job_id, job_data = job_tracker.get_next_job()
+            # Blocking pop from Redis queue (wait up to 10 seconds)
+            job_data = r.blpop(JOB_QUEUE_KEY, timeout=10)
             
-            if not job_id:
-                time.sleep(1)  # Wait before checking again
+            if not job_data:
                 continue
+                
+            _, data = job_data
+            job = json.loads(data)
+            job_id = job["job_id"]
+            brand = job["brand"]
+            prompts = job["prompts"]
             
-            logger.info(f"Processing job {job_id}")
+            # Set worker as busy
+            r.set(WORKER_BUSY_KEY, "true")
             
-            # Update job status
-            job_tracker.update_job(job_id, {
+            logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
+            
+            # Update job status to processing
+            job_tracker = {
                 "status": "processing",
-                "started_at": time.time()
-            })
+                "started_at": time.time(),
+                "progress": 0,
+                "total_prompts": len(prompts)
+            }
+            r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
             
-            # Acquire rate limiter slot
-            if not rate_limiter.acquire_slot(job_id):
-                # Put job back in queue if can't acquire slot
-                job_tracker.redis.rpush(job_tracker.queue_key, job_id)
-                job_tracker.update_job(job_id, {"status": "queued"})
-                time.sleep(1)
-                continue
+            # Process all prompts
+            responses = {model: [] for model in MODEL_IDS}
+            total_prompts = len(prompts)
+            completed = 0
             
-            try:
-                # Process the job
-                brand = job_data["brand"]
-                prompts = json.loads(job_data["prompts"])
+            with ThreadPoolExecutor(max_workers=5) as outer_executor:
+                futures = {
+                    outer_executor.submit(process_prompt, prompt): idx
+                    for idx, prompt in enumerate(prompts)
+                }
                 
-                # Your existing processing logic here
-                result = process_brand_mention_job(brand, prompts, job_id)
-                
-                # Update job with results
-                job_tracker.update_job(job_id, {
-                    "status": "completed",
-                    "completed_at": time.time(),
-                    "result": result
-                })
-                
-            except Exception as e:
-                logger.error(f"Error processing job {job_id}: {str(e)}")
-                job_tracker.update_job(job_id, {
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        model_results = future.result()
+                        for model, response in model_results.items():
+                            responses[model].append({
+                                "prompt": prompts[idx],
+                                "response": response
+                            })
+                    except Exception as e:
+                        error_msg = f"Error: {str(e)}"
+                        for model in MODEL_IDS:
+                            responses[model].append({
+                                "prompt": prompts[idx],
+                                "response": error_msg
+                            })
+                        logger.error(f"Error processing prompt: {str(e)}")
+                    
+                    # Update progress
+                    completed += 1
+                    progress = (completed / total_prompts) * 100
+                    job_tracker["progress"] = progress
+                    r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+            
+            # Calculate results
+            results = {}
+            for model in MODEL_IDS:
+                mention_rate = calculate_mention_rate(responses[model], brand)
+                mentioned, not_mentioned = segregate_prompts_by_mention(responses[model], brand)
+                results[model] = {
+                    "mention_rate": mention_rate,
+                    "mentioned": mentioned[:3],
+                    "not_mentioned": not_mentioned[:3]
+                }
+            
+            # Mark job as complete
+            job_tracker = {
+                "status": "completed",
+                "completed_at": time.time(),
+                "result": {
+                    "brand": brand,
+                    "total_prompts": total_prompts,
+                    "openAi_mention_rate": results["openai"]["mention_rate"],
+                    "gemini_mention_rate": results["gemini"]["mention_rate"],
+                    "perplexity_mention_rate": results["perplexity"]["mention_rate"],
+                    "deepseek_mention_rate": results["deepseek"]["mention_rate"],
+                    "claude_mention_rate": results["claude"]["mention_rate"],
+                    "segregated_prompts": {
+                        "openai": {
+                            "mentioned": results["openai"]["mentioned"],
+                            "not_mentioned": results["openai"]["not_mentioned"]
+                        },
+                        "gemini": {
+                            "mentioned": results["gemini"]["mentioned"],
+                            "not_mentioned": results["gemini"]["not_mentioned"]
+                        },
+                        "perplexity": {
+                            "mentioned": results["perplexity"]["mentioned"],
+                            "not_mentioned": results["perplexity"]["not_mentioned"]
+                        },
+                        "deepseek": {
+                            "mentioned": results["deepseek"]["mentioned"],
+                            "not_mentioned": results["deepseek"]["not_mentioned"]
+                        },
+                        "claude": {
+                            "mentioned": results["claude"]["mentioned"],
+                            "not_mentioned": results["claude"]["not_mentioned"]
+                        }
+                    }
+                }
+            }
+            r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+            
+        except Exception as e:
+            logger.error(f"Worker error: {str(e)}")
+            if job_id:
+                job_tracker = {
                     "status": "failed",
                     "completed_at": time.time(),
                     "error": str(e)
-                })
-            
-            finally:
-                # Always release the slot
-                rate_limiter.release_slot(job_id)
-                
-        except Exception as e:
-            logger.error(f"Worker error: {str(e)}")
-            time.sleep(1)
+                }
+                r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+        finally:
+            # Clear worker busy status
+            r.delete(WORKER_BUSY_KEY)
+            logger.info(f"Finished job {job_id}")
 
-def process_brand_mention_job(brand, prompts, job_id):
-    """Process brand mention job with progress tracking"""
-    from .llm_query import query_openrouter
-    from .utils import calculate_mention_rate
+# Start worker thread
+def start_worker():
+    # Only start if no worker is active
+    if not r.get(WORKER_BUSY_KEY):
+        worker = threading.Thread(target=worker_thread, daemon=True)
+        worker.start()
+        logger.info("Started worker thread")
+
+@api_view(['POST'])
+def brand_mention_score(request):
+    # Add worker identification
+    worker_id = f"{os.getpid()}-{threading.get_ident()}"
+    logger.info(f"Handling request on worker: {worker_id}")
     
-    MODEL_IDS = {
-        "gemini": "google/gemini-2.5-flash",
-        "openai": "openai/o4-mini",
-        "perplexity": "perplexity/sonar-pro",
-        "deepseek": "deepseek/deepseek-r1-0528",
-        "claude": "anthropic/claude-3.5-haiku-20241022:beta"
-    }
+    start_worker()  # Ensure worker is running
     
-    responses = {model: [] for model in MODEL_IDS.keys()}
+    brand = request.data.get("brand")
+    prompts = request.data.get("prompts", [])
+    if not brand or not prompts:
+        return Response({"error": "brand and prompts are required"}, status=400)
     
-    for idx, prompt in enumerate(prompts):
+    # Check if we can process immediately
+    if RATE_LIMITER.can_request() and not r.exists(WORKER_BUSY_KEY) and r.llen(JOB_QUEUE_KEY) == 0:
         try:
-            # Process each model sequentially
-            for model_name, model_id in MODEL_IDS.items():
-                response = query_openrouter(prompt, model_id)
-                responses[model_name].append({
-                    "prompt": prompt,
-                    "response": response
-                })
+            # Process immediately
+            responses = {model: [] for model in MODEL_IDS}
+            
+            with ThreadPoolExecutor(max_workers=8) as outer_executor:
+                futures = {
+                    outer_executor.submit(process_prompt, prompt): prompt
+                    for prompt in prompts
+                }
                 
-                # Small delay to respect rate limits
-                time.sleep(0.5)
+                for future in as_completed(futures):
+                    model_results = future.result()
+                    for model, response in model_results.items():
+                        responses[model].append({
+                            "prompt": futures[future],
+                            "response": response
+                        })
             
-            # Update progress
-            progress = ((idx + 1) / len(prompts)) * 100
-            job_tracker.update_job(job_id, {"progress": progress})
+            # Calculate results
+            results = {}
+            for model in MODEL_IDS:
+                mention_rate = calculate_mention_rate(responses[model], brand)
+                mentioned, not_mentioned = segregate_prompts_by_mention(responses[model], brand)
+                results[model] = {
+                    "mention_rate": mention_rate,
+                    "mentioned": mentioned[:3],
+                    "not_mentioned": not_mentioned[:3]
+                }
             
+            return Response({
+                "status": "completed",
+                "brand": brand,
+                "total_prompts": len(prompts),
+                "openAi_mention_rate": results["openai"]["mention_rate"],
+                "gemini_mention_rate": results["gemini"]["mention_rate"],
+                "perplexity_mention_rate": results["perplexity"]["mention_rate"],
+                "deepseek_mention_rate": results["deepseek"]["mention_rate"],
+                "claude_mention_rate": results["claude"]["mention_rate"],
+                "segregated_prompts": {
+                    "openai": {
+                        "mentioned": results["openai"]["mentioned"],
+                        "not_mentioned": results["openai"]["not_mentioned"]
+                    },
+                    "gemini": {
+                        "mentioned": results["gemini"]["mentioned"],
+                        "not_mentioned": results["gemini"]["not_mentioned"]
+                    },
+                    "perplexity": {
+                        "mentioned": results["perplexity"]["mentioned"],
+                        "not_mentioned": results["perplexity"]["not_mentioned"]
+                    },
+                    "deepseek": {
+                        "mentioned": results["deepseek"]["mentioned"],
+                        "not_mentioned": results["deepseek"]["not_mentioned"]
+                    },
+                    "claude": {
+                        "mentioned": results["claude"]["mentioned"],
+                        "not_mentioned": results["claude"]["not_mentioned"]
+                    }
+                }
+            })
         except Exception as e:
-            logger.error(f"Error processing prompt {idx}: {str(e)}")
-            # Add error responses
-            for model_name in MODEL_IDS.keys():
-                responses[model_name].append({
-                    "prompt": prompt,
-                    "response": f"Error: {str(e)}"
-                })
-    
-    # Calculate mention rates
-    mention_rates = {}
-    segregated_prompts = {}
-    
-    for model_name, model_responses in responses.items():
-        mention_rates[f"{model_name}_mention_rate"] = calculate_mention_rate(model_responses, brand)
-        mentioned, not_mentioned = segregate_prompts_by_mention(model_responses, brand)
-        segregated_prompts[model_name] = {
-            "mentioned": mentioned[:3],
-            "not_mentioned": not_mentioned[:3]
+            return Response({"status": "failed", "error": str(e)}, status=500)
+    else:
+        # Create job and add to queue
+        job_id = str(uuid.uuid4())
+        job_data = {
+            "job_id": job_id,
+            "brand": brand,
+            "prompts": prompts
         }
-    
-    return {
-        "brand": brand,
-        "total_prompts": len(prompts),
-        **mention_rates,
-        "segregated_prompts": segregated_prompts
-    }
+        
+        # Add to Redis queue
+        r.rpush(JOB_QUEUE_KEY, json.dumps(job_data))
+        
+        # Get queue position
+        queue_size = r.llen(JOB_QUEUE_KEY)
+        position = queue_size  # Since we just added to end
+        
+        # Create job tracker entry
+        job_tracker = {
+            "status": "queued",
+            "created_at": time.time(),
+            "brand": brand,
+            "prompt_count": len(prompts),
+            "position_in_queue": position
+        }
+        r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+        
+        # Calculate wait time estimate
+        wait_seconds = position * 10  # Simplified estimation
+        
+        response_data = {
+            "status": "queued",
+            "message": "Server is busy, request queued",
+            "job_id": job_id,
+            "position_in_queue": position,
+            "estimated_wait_seconds": wait_seconds
+        }
+        
+        return Response(response_data, status=202)
 
+@api_view(['POST'])
+def job_status(request):
+    job_id = request.data.get("job_id")
+    job_data = r.get(f"{JOB_TRACKER_PREFIX}{job_id}")
+    
+    if not job_data:
+        return Response({"error": "Job not found"}, status=404)
+    
+    job = json.loads(job_data)
+    response_data = {
+        "job_id": job_id,
+        "status": job["status"],
+        "created_at": job.get("created_at"),
+    }
+    
+    if job["status"] == "queued":
+        response_data["position_in_queue"] = job.get("position_in_queue", 0)
+        response_data["estimated_wait_seconds"] = job.get("position_in_queue", 0) * 10
+    
+    elif job["status"] == "processing":
+        response_data["started_at"] = job.get("started_at")
+        response_data["progress"] = f"{job.get('progress', 0):.1f}%"
+        response_data["total_prompts"] = job.get("total_prompts", 0)
+    
+    elif job["status"] == "completed":
+        response_data["completed_at"] = job.get("completed_at")
+        response_data["data"] = job.get("result", {})
+    
+    elif job["status"] == "failed":
+        response_data["completed_at"] = job.get("completed_at")
+        response_data["error"] = job.get("error", "Unknown error")
+    
+    return Response(response_data)
+
+# Keep all other functions (run_query, generate_prompts, health_check) unchanged     
+        
 def segregate_prompts_by_mention(responses, brand_name):
-    """Segregate prompts by brand mention"""
+    """
+    Splits prompts into those where the given brand_name
+    *actually appears* in its response vs. those where it does not.
+    """
     mentioned, not_mentioned = [], []
     
     for item in responses:
         prompt_text = item.get("prompt", "")
-        resp = item.get("response", "") or ""
+        resp       = item.get("response", "") or ""
         if brand_name.lower() in resp.lower():
             mentioned.append(prompt_text)
         else:
@@ -318,99 +392,9 @@ def segregate_prompts_by_mention(responses, brand_name):
     
     return mentioned, not_mentioned
 
-# Start worker thread
-worker_thread = threading.Thread(target=process_job_worker, daemon=True)
-worker_thread.start()
-logger.info("Distributed worker started")
 
-@api_view(['POST'])
-def brand_mention_score(request):
-    """Handle brand mention score requests with distributed rate limiting"""
-    
-    brand = request.data.get("brand")
-    prompts = request.data.get("prompts", [])
-    
-    if not brand or not prompts:
-        return Response({"error": "brand and prompts are required"}, status=400)
-    
-    # Check if can process immediately
-    can_process = rate_limiter.can_process_immediately()
-    queue_length = job_tracker.get_queue_length()
-    
-    logger.info(f"Request check - Can process: {can_process}, Queue length: {queue_length}")
-    
-    if can_process and queue_length == 0:
-        # Try to acquire slot immediately
-        request_id = str(uuid.uuid4())
-        if rate_limiter.acquire_slot(request_id):
-            try:
-                # Process immediately
-                logger.info(f"Processing request {request_id} immediately")
-                result = process_brand_mention_job(brand, prompts, request_id)
-                
-                return Response({
-                    "status": "completed",
-                    **result
-                })
-            
-            except Exception as e:
-                logger.error(f"Immediate processing failed: {str(e)}")
-                return Response({"status": "failed", "error": str(e)}, status=500)
-            
-            finally:
-                rate_limiter.release_slot(request_id)
-    
-    # Queue the request
-    job_id = str(uuid.uuid4())
-    position = job_tracker.create_job(job_id, brand, prompts)
-    
-    # Calculate estimated wait time
-    estimated_wait = position * len(prompts) * 50  # 50 seconds per prompt
-    
-    response_data = {
-        "status": "queued",
-        "message": "Request queued for processing",
-        "job_id": job_id,
-        "position_in_queue": position,
-        "estimated_wait_seconds": estimated_wait,
-        "estimated_wait_minutes": estimated_wait / 60
-    }
-    
-    logger.info(f"Job {job_id} queued at position {position}")
-    
-    return StreamingHttpResponse(
-        [json.dumps(response_data)],
-        status=202,
-        content_type='application/json'
-    )
-
-@api_view(['POST'])
-def job_status(request):
-    """Get job status"""
-    job_id = request.data.get("job_id")
-    
-    if not job_id:
-        return Response({"error": "job_id is required"}, status=400)
-    
-    job_data = job_tracker.get_job(job_id)
-    
-    if not job_data:
-        return Response({"error": "Job not found"}, status=404)
-    
-    return Response(job_data)
-
+        
 @api_view(['GET'])
 def health_check(request):
-    """Health check endpoint"""
-    try:
-        # Test Redis connection
-        redis_client.ping()
-        redis_status = "connected"
-    except:
-        redis_status = "disconnected"
-    
-    return Response({
-        "status": "ok",
-        "redis": redis_status,
-        "queue_length": job_tracker.get_queue_length()
-    })
+    port = os.getenv("PORT", "8000")
+    return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
