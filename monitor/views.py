@@ -103,7 +103,7 @@ def worker_thread():
             prompts = job["prompts"]
             
             # Set worker as busy
-            r.set(WORKER_BUSY_KEY, "true")
+            r.set(WORKER_BUSY_KEY, "background", ex=3600)  # 1hr expiration for safety
             
             logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
             
@@ -238,6 +238,7 @@ def brand_mention_score(request):
     # Check if we can process immediately
     if RATE_LIMITER.can_request() and not r.exists(WORKER_BUSY_KEY) and r.llen(JOB_QUEUE_KEY) == 0:
         try:
+            r.set(WORKER_BUSY_KEY, "immediate", ex=300)
             # Process immediately
             responses = {model: [] for model in MODEL_IDS}
             
@@ -300,6 +301,10 @@ def brand_mention_score(request):
             })
         except Exception as e:
             return Response({"status": "failed", "error": str(e)}, status=500)
+        
+        finally:
+            r.delete(WORKER_BUSY_KEY)
+        
     else:
         # Create job and add to queue
         job_id = str(uuid.uuid4())
