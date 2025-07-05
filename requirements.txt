@@ -14,6 +14,7 @@ vaderSentiment==3.3.2
 google-generativeai==0.5.4
 pandas==2.2.2
 django-cors-headers
+redis==4.5.4
 numpy==1.23.5 --prefer-binary
 blis==0.7.9 --prefer-binary
 cython>=0.29 --prefer-binary
