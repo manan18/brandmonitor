@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-from .llm_query import query_openai, query_gemini, query_openrouter
+from .llm_query import query_openai, query_openrouter
 from .sentiment import get_sentiment
 from .theme_extraction import extract_themes
 import os
@@ -11,6 +11,7 @@ from .utils import calculate_mention_rate
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.http import StreamingHttpResponse
 
 import threading
 import time
@@ -20,6 +21,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+import json
 
 load_dotenv()
 
@@ -74,7 +76,8 @@ class RateLimiter:
 
 
 # instantiate with your OpenRouter limits
-RATE_LIMITER = RateLimiter(max_requests=200, interval_s=10.0)
+# RATE_LIMITER = RateLimiter(max_requests=100, interval_s=60.0)
+RATE_LIMITER = RateLimiter(max_requests=1, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -84,16 +87,20 @@ def query_openrouter_limited(prompt: str, model_id: str) -> str:
     return query_openrouter(prompt, model_id, max_tokens)
 
 def process_prompt(prompt):
-    """Process a single prompt with both models in parallel"""
-    with ThreadPoolExecutor(max_workers=5) as inner_executor:
-      
-        gemini_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["gemini"])
-        openai_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["openai"])
-        perplexity_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["perplexity"])
-        deepseek_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["deepseek"])
-        claude_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["claude"])
-        return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
+    """Process a single prompt with all models in parallel"""
+    try : 
+        with ThreadPoolExecutor(max_workers=5) as inner_executor:
+        
+            gemini_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["gemini"])
+            openai_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["openai"])
+            perplexity_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["perplexity"])
+            deepseek_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["deepseek"])
+            claude_future = inner_executor.submit(query_openrouter_limited, prompt, MODEL_IDS["claude"])
+            return gemini_future.result(), openai_future.result(), perplexity_future.result(), deepseek_future.result(), claude_future.result()
 
+    except Exception as e:
+        logger.error(f"process_prompt failed: {str(e)}")
+        return "", "", "", "", ""  # Return empty strings on failure
 
 def worker_thread():
     """Background worker that processes queued requests"""
@@ -102,16 +109,26 @@ def worker_thread():
         # Get next job from queue
         job_id, brand, prompts = request_queue.get()
         logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
+        with worker_busy_lock:
+            worker_busy = True 
         
         try:
             # Update job status to processing
             with job_lock:
-                job_tracker[job_id] = {
-                    "status": "processing",
-                    "started_at": time.time(),
-                    "progress": 0,
-                    "total_prompts": len(prompts)
-                }
+                if job_id in job_tracker:
+                    job_tracker[job_id].update({
+                        "status": "processing",
+                        "started_at": time.time(),
+                        "progress": 0,
+                        "total_prompts": len(prompts)
+                    })
+                else:
+                    job_tracker[job_id] = {
+                        "status": "processing",
+                        "started_at": time.time(),
+                        "progress": 0,
+                        "total_prompts": len(prompts)
+                    }
             
             # Process all prompts in parallel
             openAi_responses = []
@@ -122,7 +139,7 @@ def worker_thread():
             total_prompts = len(prompts)
             completed = 0
             
-            with ThreadPoolExecutor(max_workers=15) as outer_executor:
+            with ThreadPoolExecutor(max_workers=5) as outer_executor:
                 # Create futures for all prompts
                 futures = {
                     outer_executor.submit(process_prompt, prompt): idx
@@ -160,30 +177,107 @@ def worker_thread():
             perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
             deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
+            
+            # Segregate the prompts
+            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
+            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
+            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
+            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
+            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
+
+            
             # Mark job as complete
             with job_lock:
-                job_tracker[job_id] = {
-                    "status": "completed",
-                    "completed_at": time.time(),
-                    "result": {
-                        "brand": brand,
-                        "total_prompts": total_prompts,
-                        "openAi_mention_rate": openAi_mention_rate,
-                        "gemini_mention_rate": gemini_mention_rate,
-                        "perplexity_mention_rate": perplexity_mention_rate,
-                        "deepseek_mention_rate": deepseek_mention_rate,
-                        "claude_mention_rate": claude_mention_rate,
+                if job_id in job_tracker:
+                    job_tracker[job_id].update({
+                        "status": "completed",
+                        "completed_at": time.time(),
+                        "result": {
+                            "brand": brand,
+                            "total_prompts": total_prompts,
+                            "openAi_mention_rate": openAi_mention_rate,
+                            "gemini_mention_rate": gemini_mention_rate,
+                            "perplexity_mention_rate": perplexity_mention_rate,
+                            "deepseek_mention_rate": deepseek_mention_rate,
+                            "claude_mention_rate": claude_mention_rate,
+                            "segregated_prompts": {
+                                "openai": {
+                                    "mentioned": openai_mentioned[:3],
+                                    "not_mentioned": openai_not_mentioned[:3]
+                                },
+                                "gemini": {
+                                    "mentioned": gemini_mentioned[:3],
+                                    "not_mentioned": gemini_not_mentioned[:3]
+                                },
+                                "perplexity": {
+                                    "mentioned": perplexity_mentioned[:3],
+                                    "not_mentioned": perplexity_not_mentioned[:3]
+                                },
+                                "deepseek": {
+                                    "mentioned": deepseek_mentioned[:3],
+                                    "not_mentioned": deepseek_not_mentioned[:3]
+                                },
+                                "claude": {
+                                    "mentioned": claude_mentioned[:3],
+                                    "not_mentioned": claude_not_mentioned[:3]
+                                }
+                            }
+
+                        }
+                    })
+                else:
+                    job_tracker[job_id] = {
+                        "status": "completed",
+                        "completed_at": time.time(),
+                        "result": {
+                            "brand": brand,
+                            "total_prompts": total_prompts,
+                            "openAi_mention_rate": openAi_mention_rate,
+                            "gemini_mention_rate": gemini_mention_rate,
+                            "perplexity_mention_rate": perplexity_mention_rate,
+                            "deepseek_mention_rate": deepseek_mention_rate,
+                            "claude_mention_rate": claude_mention_rate,
+                            "segregated_prompts": {
+                                "openai": {
+                                    "mentioned": openai_mentioned[:3],
+                                    "not_mentioned": openai_not_mentioned[:3]
+                                },
+                                "gemini": {
+                                    "mentioned": gemini_mentioned[:3],
+                                    "not_mentioned": gemini_not_mentioned[:3]
+                                },
+                                "perplexity": {
+                                    "mentioned": perplexity_mentioned[:3],
+                                    "not_mentioned": perplexity_not_mentioned[:3]
+                                },
+                                "deepseek": {
+                                    "mentioned": deepseek_mentioned[:3],
+                                    "not_mentioned": deepseek_not_mentioned[:3]
+                                },
+                                "claude": {
+                                    "mentioned": claude_mentioned[:3],
+                                    "not_mentioned": claude_not_mentioned[:3]
+                                }
+                            }
+
+                        }
                     }
-                }
                 
         except Exception as e:
             logger.error(f"Job {job_id} failed: {str(e)}")
             with job_lock:
-                job_tracker[job_id] = {
-                    "status": "failed",
-                    "completed_at": time.time(),
-                    "error": str(e)
-                }
+                if job_id in job_tracker:
+                    job_tracker[job_id].update({
+                        "status": "failed",
+                        "completed_at": time.time(),
+                        "error": str(e)
+                    })
+                else:
+                    job_tracker[job_id] = {
+                        "status": "failed",
+                        "completed_at": time.time(),
+                        "error": str(e)
+                    }
         
         finally:
             with worker_busy_lock:
@@ -214,19 +308,9 @@ def run_query(request):
     prompt = prompt_template.format(brand=brand, competitor=competitor or "")
 
     try:
-        g_response = query_gemini(prompt, GEMINI_API_KEY)
-        o_response = query_openai(prompt, OPENAI_MODEL, OPENAI_API_KEY)
+        o_response = query_openai(prompt, OPENAI_MODEL)
 
         results = [
-            {
-                "brand": brand,
-                "competitor": competitor,
-                "prompt": prompt,
-                "response": g_response,
-                "sentiment": get_sentiment(g_response),
-                "themes": extract_themes(g_response),
-                "ai": "gemini"
-            },
             {
                 "brand": brand,
                 "competitor": competitor,
@@ -266,7 +350,8 @@ def generate_prompts(request):
     prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
 
     try:
-        o_response = query_openai(prompt, MODEL_IDS["openai"])
+        o_response = query_openai(prompt, OPENAI_MODEL)
+        # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
         o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
         results = {
             "openai": o_response_array
@@ -280,6 +365,7 @@ def generate_prompts(request):
 @api_view(['POST'])
 def job_status(request):
     job_id = request.data.get("job_id")
+    print(f"Job ID: {job_id}")
     with job_lock:
         job = job_tracker.get(job_id)
     
@@ -299,6 +385,7 @@ def job_status(request):
             # Estimate wait: next‐slot wait + 5s per job
             now = time.time()
             elapsed = now - (RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now)
+            position = job.get("position_in_queue", 0)
             wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
 
             response_data["estimated_wait_seconds"] = wait_seconds
@@ -328,6 +415,7 @@ def brand_mention_score(request):
     if not brand or not prompts:
         return Response({"error": "brand and prompts are required"}, status=400)
     
+    
     # Check if we can process immediately
     if RATE_LIMITER.can_request() and not worker_busy and request_queue.empty():
         try:
@@ -338,7 +426,7 @@ def brand_mention_score(request):
             perplexity_responses = []
             deepseek_responses = []
             claude_responses = []
-            with ThreadPoolExecutor(max_workers=15) as outer_executor:
+            with ThreadPoolExecutor(max_workers=8) as outer_executor:
                 futures = {
                     outer_executor.submit(process_prompt, prompt): prompt
                     for prompt in prompts
@@ -375,6 +463,14 @@ def brand_mention_score(request):
             deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
             claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
 
+
+            # Segregate the prompts on the basis of mention rate
+            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
+            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
+            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
+            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
+            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
+
             return Response({
                 "status": "completed",
                 "brand": brand,
@@ -384,28 +480,28 @@ def brand_mention_score(request):
                 "perplexity_mention_rate": perplexity_mention_rate,
                 "deepseek_mention_rate": deepseek_mention_rate,
                 "claude_mention_rate": claude_mention_rate,
-                # "segregated_prompts": {
-                #     "openai": {
-                #         "mentioned": openai_mentioned[:3],
-                #         "not_mentioned": openai_not_mentioned[:3]
-                #     },
-                #     "gemini": {
-                #         "mentioned": gemini_mentioned[:3],
-                #         "not_mentioned": gemini_not_mentioned[:3]
-                #     },
-                #     "perplexity": {
-                #         "mentioned": perplexity_mentioned[:3],
-                #         "not_mentioned": perplexity_not_mentioned[:3]
-                #     },
-                #     "deepseek": {
-                #         "mentioned": deepseek_mentioned[:3],
-                #         "not_mentioned": deepseek_not_mentioned[:3]
-                #     },
-                #     "claude": {
-                #         "mentioned": claude_mentioned[:3],
-                #         "not_mentioned": claude_not_mentioned[:3]
-                #     }
-                # }
+                "segregated_prompts": {
+                    "openai": {
+                        "mentioned": openai_mentioned[:3],
+                        "not_mentioned": openai_not_mentioned[:3]
+                    },
+                    "gemini": {
+                        "mentioned": gemini_mentioned[:3],
+                        "not_mentioned": gemini_not_mentioned[:3]
+                    },
+                    "perplexity": {
+                        "mentioned": perplexity_mentioned[:3],
+                        "not_mentioned": perplexity_not_mentioned[:3]
+                    },
+                    "deepseek": {
+                        "mentioned": deepseek_mentioned[:3],
+                        "not_mentioned": deepseek_not_mentioned[:3]
+                    },
+                    "claude": {
+                        "mentioned": claude_mentioned[:3],
+                        "not_mentioned": claude_not_mentioned[:3]
+                    }
+                }
             })
         
         except Exception as e:
@@ -432,17 +528,30 @@ def brand_mention_score(request):
         request_queue.put((job_id, brand, prompts))
         
         # Calculate wait time estimate (5 seconds per queued job + rate limit wait)
-        wait_seconds = GEMINI_LIMITER.next_available_time() + (position * 5)
+        now = time.time()
+        oldest = RATE_LIMITER.request_timestamps[0] if RATE_LIMITER.request_timestamps else now
+        elapsed = now - oldest
+        wait_seconds = max(0, RATE_LIMITER.interval - elapsed) + (position * 5)
         
-        return Response({
+         # Create response data
+        response_data = {
             "status": "queued",
             "message": "Server is busy, request queued",
             "job_id": job_id,
             "position_in_queue": position,
             "estimated_wait_seconds": wait_seconds
-        }, status=202)  # 202 Accepted
+        }
         
-  
+        def generate():
+            yield json.dumps(response_data)
+        
+        return StreamingHttpResponse(
+            generate(),
+            status=202,
+            content_type='application/json'
+        )
+        
+        
 def segregate_prompts_by_mention(responses, brand_name):
     """
     Splits prompts into those where the given brand_name
@@ -461,37 +570,9 @@ def segregate_prompts_by_mention(responses, brand_name):
     return mentioned, not_mentioned
 
 
-      
+        
 @api_view(['GET'])
 def health_check(request):
     port = os.getenv("PORT", "8000")
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
 
-@api_view(['GET', 'HEAD'])
-def home(request):
-    return Response("Server is live 🚀")
-
-
-@api_view(['GET'])
-def get_total_cost(request):
-    """Sum the Total Cost ($) column from the CSV log without rounding."""
-    import csv
-    import os
-
-    csv_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "../model_costs.csv"))
-
-    if not os.path.exists(csv_file):
-        return Response({"error": f"CSV file not found at {csv_file}"}, status=404)
-
-    total = 0.0
-    with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            try:
-                cost_str = row.get("Total Cost ($)")
-                if cost_str is not None and cost_str != "":
-                    total += float(cost_str)
-            except (KeyError, ValueError, TypeError):
-                continue
-
-    return Response({"total_cost": total})
