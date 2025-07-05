@@ -76,7 +76,8 @@ class RateLimiter:
 
 
 # instantiate with your OpenRouter limits
-RATE_LIMITER = RateLimiter(max_requests=100, interval_s=60.0)
+# RATE_LIMITER = RateLimiter(max_requests=100, interval_s=60.0)
+RATE_LIMITER = RateLimiter(max_requests=1, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
