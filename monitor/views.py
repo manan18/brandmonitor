@@ -21,6 +21,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+import json
 
 load_dotenv()
 
@@ -75,7 +76,7 @@ class RateLimiter:
 
 
 # instantiate with your OpenRouter limits
-RATE_LIMITER = RateLimiter(max_requests=1, interval_s=10.0)
+RATE_LIMITER = RateLimiter(max_requests=100, interval_s=60.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -172,6 +173,15 @@ def worker_thread():
             perplexity_mention_rate = calculate_mention_rate(perplexity_responses, brand)
             deepseek_mention_rate = calculate_mention_rate(deepseek_responses, brand)
             claude_mention_rate = calculate_mention_rate(claude_responses, brand)
+            
+            # Segregate the prompts
+            openai_mentioned, openai_not_mentioned = segregate_prompts_by_mention(openAi_responses, brand)
+            gemini_mentioned, gemini_not_mentioned = segregate_prompts_by_mention(gemini_responses, brand)
+            perplexity_mentioned, perplexity_not_mentioned = segregate_prompts_by_mention(perplexity_responses, brand)
+            deepseek_mentioned, deepseek_not_mentioned = segregate_prompts_by_mention(deepseek_responses, brand)
+            claude_mentioned, claude_not_mentioned = segregate_prompts_by_mention(claude_responses, brand)
+
+            
             # Mark job as complete
             with job_lock:
                 if job_id in job_tracker:
@@ -186,6 +196,29 @@ def worker_thread():
                             "perplexity_mention_rate": perplexity_mention_rate,
                             "deepseek_mention_rate": deepseek_mention_rate,
                             "claude_mention_rate": claude_mention_rate,
+                            "segregated_prompts": {
+                                "openai": {
+                                    "mentioned": openai_mentioned[:3],
+                                    "not_mentioned": openai_not_mentioned[:3]
+                                },
+                                "gemini": {
+                                    "mentioned": gemini_mentioned[:3],
+                                    "not_mentioned": gemini_not_mentioned[:3]
+                                },
+                                "perplexity": {
+                                    "mentioned": perplexity_mentioned[:3],
+                                    "not_mentioned": perplexity_not_mentioned[:3]
+                                },
+                                "deepseek": {
+                                    "mentioned": deepseek_mentioned[:3],
+                                    "not_mentioned": deepseek_not_mentioned[:3]
+                                },
+                                "claude": {
+                                    "mentioned": claude_mentioned[:3],
+                                    "not_mentioned": claude_not_mentioned[:3]
+                                }
+                            }
+
                         }
                     })
                 else:
@@ -200,6 +233,29 @@ def worker_thread():
                             "perplexity_mention_rate": perplexity_mention_rate,
                             "deepseek_mention_rate": deepseek_mention_rate,
                             "claude_mention_rate": claude_mention_rate,
+                            "segregated_prompts": {
+                                "openai": {
+                                    "mentioned": openai_mentioned[:3],
+                                    "not_mentioned": openai_not_mentioned[:3]
+                                },
+                                "gemini": {
+                                    "mentioned": gemini_mentioned[:3],
+                                    "not_mentioned": gemini_not_mentioned[:3]
+                                },
+                                "perplexity": {
+                                    "mentioned": perplexity_mentioned[:3],
+                                    "not_mentioned": perplexity_not_mentioned[:3]
+                                },
+                                "deepseek": {
+                                    "mentioned": deepseek_mentioned[:3],
+                                    "not_mentioned": deepseek_not_mentioned[:3]
+                                },
+                                "claude": {
+                                    "mentioned": claude_mentioned[:3],
+                                    "not_mentioned": claude_not_mentioned[:3]
+                                }
+                            }
+
                         }
                     }
                 
@@ -309,6 +365,7 @@ def generate_prompts(request):
 @api_view(['POST'])
 def job_status(request):
     job_id = request.data.get("job_id")
+    print(f"Job ID: {job_id}")
     with job_lock:
         job = job_tracker.get(job_id)
     
@@ -485,7 +542,6 @@ def brand_mention_score(request):
             status=202,
             content_type='application/json'
         )
-        
         
         
 def segregate_prompts_by_mention(responses, brand_name):
