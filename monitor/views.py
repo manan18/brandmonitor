@@ -44,8 +44,7 @@ logger.setLevel(logging.INFO)
 request_queue = queue.Queue()
 job_tracker = {}
 job_lock = threading.Lock()
-worker_busy = False
-worker_busy_lock = threading.Lock()
+worker_busy = threading.Event() 
 
 
 class RateLimiter:
@@ -107,7 +106,7 @@ def worker_thread():
         job_id, brand, prompts = request_queue.get()
         logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
         with worker_busy_lock:
-            worker_busy = True 
+            worker_busy.set() 
         
         try:
             # Update job status to processing
@@ -278,7 +277,7 @@ def worker_thread():
         
         finally:
             with worker_busy_lock:
-                worker_busy = False
+                worker_busy.clear()
             request_queue.task_done()
             logger.info(f"Finished job {job_id}")
 
@@ -418,7 +417,7 @@ def brand_mention_score(request):
     
     
     # Check if we can process immediately
-    if RATE_LIMITER.can_request() and not worker_busy and request_queue.empty():
+    if RATE_LIMITER.can_request() and not worker_busy.is_set() and request_queue.empty():
         try:
             
             # Process immediately with parallel execution
@@ -505,7 +504,7 @@ def brand_mention_score(request):
         job_id = str(uuid.uuid4())
         
         with worker_busy_lock:
-            is_busy = worker_busy
+            is_busy = worker_busy.is_set()
             queue_size = request_queue.qsize()
             
         with job_lock:
