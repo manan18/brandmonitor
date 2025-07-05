@@ -2,6 +2,9 @@ from openai import OpenAI
 import google.generativeai as genai
 import yaml
 import os
+
+from openai import OpenAI
+    
 def load_config(path="config.yaml"):
     with open(path, 'r') as f:
         return yaml.safe_load(f)
@@ -22,19 +25,19 @@ def query_openai(prompt, model):
     return response.choices[0].message.content
 
 
-def query_openrouter(prompt, model_id):
-    """Query any model through OpenRouter API"""
-    client = OpenAI(
-        api_key=os.getenv('OPENROUTER_API_KEY'),
-        base_url="https://openrouter.ai/api/v1"
-    )
+# def query_openrouter(prompt, model_id):
+#     """Query any model through OpenRouter API"""
+#     client = OpenAI(
+#         api_key=os.getenv('OPENROUTER_API_KEY'),
+#         base_url="https://openrouter.ai/api/v1"
+#     )
     
-    response = client.chat.completions.create(
-        model=model_id,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
-    )
-    return response.choices[0].message.content
+#     response = client.chat.completions.create(
+#         model=model_id,
+#         messages=[{"role": "user", "content": prompt}],
+#         temperature=0.7
+#     )
+#     return response.choices[0].message.content
 
 def print_model_cost(model_id, input_tokens, output_tokens):
     """Print the estimated cost for the given model and token usage"""
@@ -60,8 +63,6 @@ def print_model_cost(model_id, input_tokens, output_tokens):
 
 def query_openrouter(prompt, model_id):
     """Query any model through OpenRouter API"""
-    from openai import OpenAI
-    import os
 
     client = OpenAI(
         api_key=os.getenv('OPENROUTER_API_KEY'),

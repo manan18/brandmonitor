@@ -17,6 +17,7 @@ import threading
 import time
 import uuid
 import queue
+import socket
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rest_framework.decorators import api_view
@@ -105,8 +106,7 @@ def worker_thread():
         # Get next job from queue
         job_id, brand, prompts = request_queue.get()
         logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
-        with worker_busy_lock:
-            worker_busy.set() 
+        worker_busy.set() 
         
         try:
             # Update job status to processing
@@ -276,8 +276,7 @@ def worker_thread():
                     }
         
         finally:
-            with worker_busy_lock:
-                worker_busy.clear()
+            worker_busy.clear()
             request_queue.task_done()
             logger.info(f"Finished job {job_id}")
 
@@ -408,6 +407,18 @@ def job_status(request):
 
 @api_view(['POST'])
 def brand_mention_score(request):
+    
+     # Add worker identification
+    worker_id = f"{socket.gethostname()}-{os.getpid()}-{threading.get_ident()}"
+    logger.info(f"Handling request on worker: {worker_id}")
+    
+    # Add state snapshot
+    logger.info(
+        f"State - Rate slots: {len(RATE_LIMITER.request_timestamps)}/"
+        f"{RATE_LIMITER.max_requests}, Worker busy: {worker_busy.is_set()}, "
+        f"Queue size: {request_queue.qsize()}"
+    )
+    
     start_worker()  # Ensure worker is running
     
     brand = request.data.get("brand")
@@ -503,9 +514,8 @@ def brand_mention_score(request):
         # Create job and add to queue
         job_id = str(uuid.uuid4())
         
-        with worker_busy_lock:
-            is_busy = worker_busy.is_set()
-            queue_size = request_queue.qsize()
+        is_busy = worker_busy.is_set()
+        queue_size = request_queue.qsize()
             
         with job_lock:
             position = queue_size + (1 if is_busy else 0)
