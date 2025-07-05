@@ -81,8 +81,8 @@ def query_openrouter(prompt, model_id):
             max_tokens=max_tokens
         )
 
-        input_tokens = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
+        # input_tokens = response.usage.prompt_tokens
+        # output_tokens = response.usage.completion_tokens
 
         # print(f"Model: {model_id}")
         # print(f"Input tokens: {input_tokens}, Output tokens: {output_tokens}")
