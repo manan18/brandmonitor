@@ -341,7 +341,7 @@ def generate_prompts(request):
         f"It has a website at {website}. "
         f"{('Some custom comments about my platform are: ' + custom_comments + '. ') if custom_comments else ''}"
         f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
-        f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it.)"
+        f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it. Keep the prompts short and concise. Do not include any brand names or specific product names in the prompts, just the specific use cases that the user might be looking for.)"
     )
 
     
