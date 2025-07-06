@@ -102,8 +102,8 @@ def worker_thread():
             brand = job["brand"]
             prompts = job["prompts"]
             
-            # Set worker as busy
-            r.set(WORKER_BUSY_KEY, "background", ex=3600)  # 1hr expiration for safety
+            # Set worker as busy with expiration
+            r.set(WORKER_BUSY_KEY, "processing", ex=3600)
             
             logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
             
@@ -121,35 +121,28 @@ def worker_thread():
             total_prompts = len(prompts)
             completed = 0
             
-            with ThreadPoolExecutor(max_workers=5) as outer_executor:
-                futures = {
-                    outer_executor.submit(process_prompt, prompt): idx
-                    for idx, prompt in enumerate(prompts)
-                }
+            for idx, prompt in enumerate(prompts):
+                try:
+                    model_results = process_prompt(prompt)
+                    for model, response in model_results.items():
+                        responses[model].append({
+                            "prompt": prompt,
+                            "response": response
+                        })
+                except Exception as e:
+                    error_msg = f"Error: {str(e)}"
+                    for model in MODEL_IDS:
+                        responses[model].append({
+                            "prompt": prompt,
+                            "response": error_msg
+                        })
+                    logger.error(f"Error processing prompt: {str(e)}")
                 
-                for future in as_completed(futures):
-                    idx = futures[future]
-                    try:
-                        model_results = future.result()
-                        for model, response in model_results.items():
-                            responses[model].append({
-                                "prompt": prompts[idx],
-                                "response": response
-                            })
-                    except Exception as e:
-                        error_msg = f"Error: {str(e)}"
-                        for model in MODEL_IDS:
-                            responses[model].append({
-                                "prompt": prompts[idx],
-                                "response": error_msg
-                            })
-                        logger.error(f"Error processing prompt: {str(e)}")
-                    
-                    # Update progress
-                    completed += 1
-                    progress = (completed / total_prompts) * 100
-                    job_tracker["progress"] = progress
-                    r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+                # Update progress
+                completed += 1
+                progress = (completed / total_prompts) * 100
+                job_tracker["progress"] = progress
+                r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
             
             # Calculate results
             results = {}
@@ -200,6 +193,8 @@ def worker_thread():
             }
             r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
             
+            logger.info(f"Completed job {job_id}")
+            
         except Exception as e:
             logger.error(f"Worker error: {str(e)}")
             if job_id:
@@ -212,7 +207,8 @@ def worker_thread():
         finally:
             # Clear worker busy status
             r.delete(WORKER_BUSY_KEY)
-            logger.info(f"Finished job {job_id}")
+            # Update queue positions for remaining jobs
+            update_queue_positions()
 
 # Start worker thread
 def start_worker():
@@ -224,128 +220,53 @@ def start_worker():
 
 @api_view(['POST'])
 def brand_mention_score(request):
-    # worker_id = f"{os.getpid()}-{threading.get_ident()}"
-    # logger.info(f"Handling request on worker: {worker_id}")
+    worker_id = f"{os.getpid()}-{threading.get_ident()}"
+    logger.info(f"Handling request on worker: {worker_id}")
     
-    start_worker()
+    start_worker()  # Ensure worker is running
     
     brand = request.data.get("brand")
     prompts = request.data.get("prompts", [])
     if not brand or not prompts:
         return Response({"error": "brand and prompts are required"}, status=400)
     
-    # ===== ATOMIC CHECK AND SET =====
-    can_process = False
-    with r.lock('immediate_processing_lock', timeout=5):
-        if RATE_LIMITER.can_request() and not r.exists(WORKER_BUSY_KEY) and r.llen(JOB_QUEUE_KEY) == 0:
-            # Reserve processing slot atomically
-            can_process = r.set(WORKER_BUSY_KEY, "immediate", ex=300, nx=True)
+    # ALWAYS QUEUE THE JOB
+    job_id = str(uuid.uuid4())
+    job_data = {
+        "job_id": job_id,
+        "brand": brand,
+        "prompts": prompts
+    }
     
-    if can_process:
-        try:
-            # Process immediately
-            responses = {model: [] for model in MODEL_IDS}
-            
-            with ThreadPoolExecutor(max_workers=8) as outer_executor:
-                futures = {
-                    outer_executor.submit(process_prompt, prompt): prompt
-                    for prompt in prompts
-                }
-                
-                for future in as_completed(futures):
-                    model_results = future.result()
-                    for model, response in model_results.items():
-                        responses[model].append({
-                            "prompt": futures[future],
-                            "response": response
-                        })
-            
-            # Calculate results
-            results = {}
-            for model in MODEL_IDS:
-                mention_rate = calculate_mention_rate(responses[model], brand)
-                mentioned, not_mentioned = segregate_prompts_by_mention(responses[model], brand)
-                results[model] = {
-                    "mention_rate": mention_rate,
-                    "mentioned": mentioned[:3],
-                    "not_mentioned": not_mentioned[:3]
-                }
-            
-            return Response({
-                "status": "completed",
-                "brand": brand,
-                "total_prompts": len(prompts),
-                "openAi_mention_rate": results["openai"]["mention_rate"],
-                "gemini_mention_rate": results["gemini"]["mention_rate"],
-                "perplexity_mention_rate": results["perplexity"]["mention_rate"],
-                "deepseek_mention_rate": results["deepseek"]["mention_rate"],
-                "claude_mention_rate": results["claude"]["mention_rate"],
-                "segregated_prompts": {
-                    "openai": {
-                        "mentioned": results["openai"]["mentioned"],
-                        "not_mentioned": results["openai"]["not_mentioned"]
-                    },
-                    "gemini": {
-                        "mentioned": results["gemini"]["mentioned"],
-                        "not_mentioned": results["gemini"]["not_mentioned"]
-                    },
-                    "perplexity": {
-                        "mentioned": results["perplexity"]["mentioned"],
-                        "not_mentioned": results["perplexity"]["not_mentioned"]
-                    },
-                    "deepseek": {
-                        "mentioned": results["deepseek"]["mentioned"],
-                        "not_mentioned": results["deepseek"]["not_mentioned"]
-                    },
-                    "claude": {
-                        "mentioned": results["claude"]["mentioned"],
-                        "not_mentioned": results["claude"]["not_mentioned"]
-                    }
-                }
-            })
-        except Exception as e:
-            return Response({"status": "failed", "error": str(e)}, status=500)
-        finally:
-            r.delete(WORKER_BUSY_KEY)
-    else:
-        # Create job and add to queue
-        job_id = str(uuid.uuid4())
-        job_data = {
-            "job_id": job_id,
-            "brand": brand,
-            "prompts": prompts
-        }
-        
-        # Add to Redis queue
-        r.rpush(JOB_QUEUE_KEY, json.dumps(job_data))
-        
-        # Get queue position
-        queue_size = r.llen(JOB_QUEUE_KEY)
-        position = queue_size  # Since we just added to end
-        
-        # Create job tracker entry
-        job_tracker = {
-            "status": "queued",
-            "created_at": time.time(),
-            "brand": brand,
-            "prompt_count": len(prompts),
-            "position_in_queue": position
-        }
-        r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
-        
-        # Calculate wait time estimate
-        wait_seconds = position * 10  # Simplified estimation
-        
-        response_data = {
-            "status": "queued",
-            "message": "Server is busy, request queued",
-            "job_id": job_id,
-            "position_in_queue": position,
-            "estimated_wait_seconds": wait_seconds
-        }
-        
-        return Response(response_data, status=202)
-
+    # Add to Redis queue
+    r.rpush(JOB_QUEUE_KEY, json.dumps(job_data))
+    
+    # Get queue position
+    queue_size = r.llen(JOB_QUEUE_KEY)
+    position = queue_size  # Since we just added to end
+    
+    # Create job tracker entry
+    job_tracker = {
+        "status": "queued",
+        "created_at": time.time(),
+        "brand": brand,
+        "prompt_count": len(prompts),
+        "position_in_queue": position
+    }
+    r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+    
+    # Calculate wait time estimate
+    wait_seconds = position * 10  # Simplified estimation
+    
+    response_data = {
+        "status": "queued",
+        "message": "Request queued",
+        "job_id": job_id,
+        "position_in_queue": position,
+        "estimated_wait_seconds": wait_seconds
+    }
+    
+    return Response(response_data, status=202)
 
 @api_view(['POST'])
 def job_status(request):
@@ -401,8 +322,27 @@ def segregate_prompts_by_mention(responses, brand_name):
     return mentioned, not_mentioned
 
 
-        
 @api_view(['GET'])
 def health_check(request):
     port = os.getenv("PORT", "8000")
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
+
+
+def update_queue_positions():
+    """Update queue positions for all queued jobs"""
+    queued_jobs = r.lrange(JOB_QUEUE_KEY, 0, -1)
+    
+    for position, job_data in enumerate(queued_jobs, start=1):
+        try:
+            job = json.loads(job_data)
+            job_id = job["job_id"]
+            tracker_key = f"{JOB_TRACKER_PREFIX}{job_id}"
+            
+            job_tracker_data = r.get(tracker_key)
+            if job_tracker_data:
+                job_tracker = json.loads(job_tracker_data)
+                if job_tracker.get("status") == "queued":
+                    job_tracker["position_in_queue"] = position
+                    r.set(tracker_key, json.dumps(job_tracker))
+        except Exception as e:
+            logger.error(f"Error updating queue position: {str(e)}")
