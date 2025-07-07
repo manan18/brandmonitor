@@ -93,6 +93,6 @@ def query_openrouter(prompt, model_id):
         return response.choices[0].message.content or ""
 
     except Exception as e:
-        print(f"Error in query: {str(e)}")
+        print(f"Model Id: {model_id} Error in query: {str(e)}")
         return ""
 

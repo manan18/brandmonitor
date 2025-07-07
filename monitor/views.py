@@ -41,6 +41,9 @@ JOB_TRACKER_PREFIX = "job_tracker:"
 WORKER_BUSY_KEY = "worker_busy"
 RATE_LIMITER_KEY = "rate_limiter"
 
+# Outer executor configuration
+NUM_OUTER_WORKERS = int(os.getenv("NUM_OUTER_WORKERS", 15))  
+
 class RedisRateLimiter:
     def __init__(self, max_requests: int, interval_s: float):
         self.max_requests = max_requests
@@ -67,7 +70,6 @@ class RedisRateLimiter:
 
 # Initialize rate limiter
 RATE_LIMITER = RedisRateLimiter(max_requests=100, interval_s=60.0)
-# RATE_LIMITER = RedisRateLimiter(max_requests=1, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -91,7 +93,6 @@ def worker_thread():
     """Background worker that processes queued requests from Redis"""
     while True:
         try:
-            # Blocking pop from Redis queue (wait up to 10 seconds)
             job_data = r.blpop(JOB_QUEUE_KEY, timeout=10)
             
             if not job_data:
@@ -206,25 +207,25 @@ def worker_thread():
                 }
                 r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
         finally:
-            # Clear worker busy status
             r.delete(WORKER_BUSY_KEY)
-            # Update queue positions for remaining jobs
             update_queue_positions()
 
-# Start worker thread
-def start_worker():
-    # Only start if no worker is active
+# Start worker threads
+def start_workers():
+    """Start multiple worker threads for parallel job processing"""
+    # Only start if no workers are active
     if not r.get(WORKER_BUSY_KEY):
-        worker = threading.Thread(target=worker_thread, daemon=True)
-        worker.start()
-        logger.info("Started worker thread")
+        for _ in range(NUM_OUTER_WORKERS):
+            worker = threading.Thread(target=worker_thread, daemon=True)
+            worker.start()
+        logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")
 
 @api_view(['POST'])
 def brand_mention_score(request):
     worker_id = f"{os.getpid()}-{threading.get_ident()}"
     logger.info(f"Handling request on worker: {worker_id}")
     
-    start_worker()  # Ensure worker is running
+    start_workers()  # Ensure workers are running
     
     brand = request.data.get("brand")
     prompts = request.data.get("prompts", [])
@@ -269,6 +270,10 @@ def brand_mention_score(request):
     
     return Response(response_data, status=202)
 
+# ... (rest of the code remains unchanged: job_status, segregate_prompts_by_mention, health_check, update_queue_positions, generate_prompts)
+
+start_workers()
+
 @api_view(['POST'])
 def job_status(request):
     job_id = request.data.get("job_id")
@@ -303,7 +308,6 @@ def job_status(request):
     
     return Response(response_data)
 
-# Keep all other functions (run_query, generate_prompts, health_check) unchanged     
         
 def segregate_prompts_by_mention(responses, brand_name):
     """
