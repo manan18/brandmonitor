@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 # Import your other modules here
-from .llm_query import query_openrouter
+from .llm_query import query_openrouter, query_openai
 from .utils import calculate_mention_rate
 
 load_dotenv()
@@ -346,3 +346,44 @@ def update_queue_positions():
                     r.set(tracker_key, json.dumps(job_tracker))
         except Exception as e:
             logger.error(f"Error updating queue position: {str(e)}")
+            
+@api_view(['POST'])
+def generate_prompts(request):
+    brand = request.data.get('brand')
+    website = request.data.get('website')
+    custom_comments = request.data.get('custom_comments', "")
+   
+    if not brand or not website:
+        return Response({"error": "Brand and Website are required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    NUMBER_OF_PROMPTS = int(os.getenv("NUMBER_OF_PROMPTS", "5"))
+    
+    
+    prompt_template = (
+        f"I have a brand/product/application known as {brand}."
+        f"It has a website at {website}. "
+        f"{('Some custom comments about my platform are: ' + custom_comments + '. ') if custom_comments else ''}"
+        f"Use the information provided above to generate a list of {NUMBER_OF_PROMPTS} prompts which would potentially mention my platform in their response if a user searches over the web for platforms similar to mine or for platforms in the same category. Give the prompts imagining that you're a random user, who does not know about my platform, but is looking for a platform which has the same features and use cases as mine. "
+        f"(In your response , I only need the prompts separated by semicolons, in a txt format, not markdown, and no extra text with it. Keep the prompts short and concise. Do not include any brand names or specific product names in the prompts, just the specific use cases that the user might be looking for.)"
+    )
+
+    
+    prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
+
+    print(f"Generated Prompt: {prompt}")
+
+    try:
+        OPENAI_MODEL = os.getenv("OPENAI_MODEL", "openai/o4-mini")
+        o_response = query_openai(prompt, OPENAI_MODEL)
+        # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
+        o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
+        results = {
+            # "gemini": g_response_array,
+            "openai": o_response_array
+        }
+
+        return Response({"results": results})
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+ 
