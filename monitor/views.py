@@ -66,7 +66,8 @@ class RedisRateLimiter:
         return r.zcount(RATE_LIMITER_KEY, current_time - self.interval, current_time) < self.max_requests
 
 # Initialize rate limiter
-RATE_LIMITER = RedisRateLimiter(max_requests=1, interval_s=10.0)
+RATE_LIMITER = RedisRateLimiter(max_requests=60, interval_s=100.0)
+# RATE_LIMITER = RedisRateLimiter(max_requests=1, interval_s=10.0)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
