@@ -15,12 +15,10 @@ from dotenv import load_dotenv
 # Import your other modules here
 from .llm_query import query_openrouter, query_openai
 from .utils import calculate_mention_rate
+from .redis_client import client as redis_client  # new import: shared Redis client
 
 load_dotenv()
 
-# Redis configuration
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-r = redis.Redis.from_url(REDIS_URL)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -41,35 +39,47 @@ JOB_TRACKER_PREFIX = "job_tracker:"
 WORKER_BUSY_KEY = "worker_busy"
 RATE_LIMITER_KEY = "rate_limiter"
 
-# Outer executor configuration
+# Worker configuration
 NUM_OUTER_WORKERS = int(os.getenv("NUM_OUTER_WORKERS", 15))  
+PROMPT_WORKERS = int(os.getenv("PROMPT_WORKERS", 5))  
+
+def print_env_variables():
+    print("➡️  NUM_OUTER_WORKERS:", os.getenv('NUM_OUTER_WORKERS', 'Not Set'))
+    print("➡️  PROMPT_WORKERS:", os.getenv('PROMPT_WORKERS', 'Not Set'))
+    print("➡️  RATE_INTERVAL_S:", os.getenv('RATE_INTERVAL_S', 'Not Set'))
+    print("➡️  RATE_LIMIT_MAX:", os.getenv('RATE_LIMIT_MAX', 'Not Set'))
+            
 
 class RedisRateLimiter:
-    def __init__(self, max_requests: int, interval_s: float):
+    def __init__(self, max_requests: int, interval_s: float, redis_client):
+        # print("🔃 Initializing RedisRateLimiter with max_requests:", max_requests, "and interval_s:", interval_s)
         self.max_requests = max_requests
         self.interval = interval_s
-
+        self.redis = redis_client
+    
     def wait_for_slot(self):
+        conn = self.redis
         while True:
             current_time = time.time()
-            # Remove old timestamps
-            r.zremrangebyscore(RATE_LIMITER_KEY, "-inf", current_time - self.interval)
-            
-            # Count current requests
-            count = r.zcount(RATE_LIMITER_KEY, current_time - self.interval, current_time)
-            
+            conn.zremrangebyscore(RATE_LIMITER_KEY, "-inf", current_time - self.interval)
+            count = conn.zcount(RATE_LIMITER_KEY, current_time - self.interval, current_time)
             if count < self.max_requests:
-                r.zadd(RATE_LIMITER_KEY, {str(uuid.uuid4()): current_time})
+                conn.zadd(RATE_LIMITER_KEY, {str(uuid.uuid4()): current_time})
                 return
             time.sleep(0.05)
-            
+    
     def can_request(self) -> bool:
+        conn = self.redis
         current_time = time.time()
-        r.zremrangebyscore(RATE_LIMITER_KEY, "-inf", current_time - self.interval)
-        return r.zcount(RATE_LIMITER_KEY, current_time - self.interval, current_time) < self.max_requests
+        conn.zremrangebyscore(RATE_LIMITER_KEY, "-inf", current_time - self.interval)
+        return conn.zcount(RATE_LIMITER_KEY, current_time - self.interval, current_time) < self.max_requests
 
-# Initialize rate limiter
-RATE_LIMITER = RedisRateLimiter(max_requests=100, interval_s=60.0)
+# Initialize rate limiter with connection pool
+RATE_LIMITER = RedisRateLimiter(
+    max_requests=int(os.getenv("RATE_LIMIT_MAX", 100)),  
+    interval_s=float(os.getenv("RATE_INTERVAL_S", 60.0)),  
+    redis_client=redis_client
+)
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -89,63 +99,64 @@ def process_prompt(prompt):
         logger.error(f"process_prompt failed: {str(e)}")
         return {model: "" for model in MODEL_IDS}
 
+
+
 def worker_thread():
-    """Background worker that processes queued requests from Redis"""
+    local_redis = redis_client 
     while True:
         try:
-            job_data = r.blpop(JOB_QUEUE_KEY, timeout=10)
-            
+            job_data = local_redis.blpop(JOB_QUEUE_KEY, timeout=10)  
             if not job_data:
                 continue
-                
             _, data = job_data
             job = json.loads(data)
             job_id = job["job_id"]
             brand = job["brand"]
             prompts = job["prompts"]
-            
-            # Set worker as busy with expiration
-            r.set(WORKER_BUSY_KEY, "processing", ex=3600)
-            
-            logger.info(f"Starting job {job_id} with {len(prompts)} prompts")
-            
-            # Update job status to processing
-            job_tracker = {
+
+            local_redis.set(WORKER_BUSY_KEY, "processing", ex=3600)  
+            logger.info(f"Starting job {job_id} with {len(prompts)} prompts")  
+
+            job_tracker = {  
                 "status": "processing",
                 "started_at": time.time(),
                 "progress": 0,
                 "total_prompts": len(prompts)
             }
-            r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
-            
-            # Process all prompts
-            responses = {model: [] for model in MODEL_IDS}
-            total_prompts = len(prompts)
-            completed = 0
-            
-            for idx, prompt in enumerate(prompts):
-                try:
-                    model_results = process_prompt(prompt)
-                    for model, response in model_results.items():
-                        responses[model].append({
-                            "prompt": prompt,
-                            "response": response
-                        })
-                except Exception as e:
-                    error_msg = f"Error: {str(e)}"
-                    for model in MODEL_IDS:
-                        responses[model].append({
-                            "prompt": prompt,
-                            "response": error_msg
-                        })
-                    logger.error(f"Error processing prompt: {str(e)}")
+            local_redis.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))  
+
+            responses = {model: [] for model in MODEL_IDS}  
+            total_prompts = len(prompts)  
+            completed = 0  
+            lock = threading.Lock()  
+
+            # Submit prompts to new executor
+            with ThreadPoolExecutor(max_workers=PROMPT_WORKERS) as prompt_executor:
+                # Submit all prompts for processing
+                future_to_prompt = {
+                    prompt_executor.submit(process_prompt, prompt): prompt
+                    for prompt in prompts
+                }
+
+                for future in as_completed(future_to_prompt):
+                    prompt = future_to_prompt[future]
+                    try:
+                        model_results = future.result()
+                        for model, response in model_results.items():
+                            responses[model].append({"prompt": prompt, "response": response})
+                    except Exception as e:
+                        error_msg = f"Error: {str(e)}"
+                        for model in MODEL_IDS:
+                            responses[model].append({"prompt": prompt, "response": error_msg})
+                        logger.error(f"Error processing prompt: {str(e)}")  
+
+                    with lock:
+                        completed += 1  
+                        progress = (completed / total_prompts) * 100  
+                        job_tracker["progress"] = progress  
+                        local_redis.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))  
+
                 
-                # Update progress
-                completed += 1
-                progress = (completed / total_prompts) * 100
-                job_tracker["progress"] = progress
-                r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
-            
             # Calculate results
             results = {}
             for model in MODEL_IDS:
@@ -193,7 +204,7 @@ def worker_thread():
                     }
                 }
             }
-            r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+            local_redis.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
             
             logger.info(f"Completed job {job_id}")
             
@@ -205,89 +216,61 @@ def worker_thread():
                     "completed_at": time.time(),
                     "error": str(e)
                 }
-                r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
+                local_redis.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
         finally:
-            r.delete(WORKER_BUSY_KEY)
-            update_queue_positions()
-
+            local_redis.delete(WORKER_BUSY_KEY)
+            update_queue_positions(local_redis)  # Pass the connection
+            
 # Start worker threads
-def start_workers():
-    """Start multiple worker threads for parallel job processing"""
-    # Only start if no workers are active
-    if not r.get(WORKER_BUSY_KEY):
-        for _ in range(NUM_OUTER_WORKERS):
-            worker = threading.Thread(target=worker_thread, daemon=True)
-            worker.start()
-        logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")
+# def start_workers():
+#     """Start multiple worker threads for parallel job processing"""
+#     # conn = redis.Redis(connection_pool=redis_pool)
+#     conn = redis_client  # Use the shared Redis client
+#     if not conn.get(WORKER_BUSY_KEY):
+#         for _ in range(NUM_OUTER_WORKERS):
+#             worker = threading.Thread(target=worker_thread, daemon=True)
+#             worker.start()
+#         logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")
+
+# Start worker threads (only in real server process)
+if os.environ.get("RUN_MAIN") == "true":
+    for _ in range(NUM_OUTER_WORKERS):  
+        threading.Thread(target=worker_thread, daemon=True).start()
+    logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")  
+
 
 @api_view(['POST'])
 def brand_mention_score(request):
-    worker_id = f"{os.getpid()}-{threading.get_ident()}"
-    logger.info(f"Handling request on worker: {worker_id}")
-    
-    start_workers()  # Ensure workers are running
-    
-    brand = request.data.get("brand")
-    prompts = request.data.get("prompts", [])
-    if not brand or not prompts:
-        return Response({"error": "brand and prompts are required"}, status=400)
-    
-    # ALWAYS QUEUE THE JOB
-    job_id = str(uuid.uuid4())
-    job_data = {
-        "job_id": job_id,
-        "brand": brand,
-        "prompts": prompts
-    }
-    
-    # Add to Redis queue
-    r.rpush(JOB_QUEUE_KEY, json.dumps(job_data))
-    
-    # Get queue position
-    queue_size = r.llen(JOB_QUEUE_KEY)
-    position = queue_size  # Since we just added to end
-    
-    # Create job tracker entry
-    job_tracker = {
-        "status": "queued",
-        "created_at": time.time(),
-        "brand": brand,
-        "prompt_count": len(prompts),
-        "position_in_queue": position
-    }
-    r.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))
-    
-    # Calculate wait time estimate
-    wait_seconds = position * 10  # Simplified estimation
-    
-    response_data = {
-        "status": "queued",
-        "message": "Request queued",
-        "job_id": job_id,
-        "position_in_queue": position,
-        "estimated_wait_seconds": wait_seconds
-    }
-    
-    return Response(response_data, status=202)
+    logger.info(f"Handling request on worker: {os.getpid()}-{threading.get_ident()}")  
+    brand = request.data.get("brand")  
+    prompts = request.data.get("prompts", [])  
+    if not brand or not prompts:  
+        return Response({"error": "brand and prompts are required"}, status=400)  
 
-# ... (rest of the code remains unchanged: job_status, segregate_prompts_by_mention, health_check, update_queue_positions, generate_prompts)
+    job_id = str(uuid.uuid4())  
+    job_data = {"job_id": job_id, "brand": brand, "prompts": prompts}  
+    redis_client.rpush(JOB_QUEUE_KEY, json.dumps(job_data))  
 
-start_workers()
+    queue_size = redis_client.llen(JOB_QUEUE_KEY)  
+    position = queue_size  
+    job_tracker = {"status": "queued", "created_at": time.time(), "brand": brand,  
+                   "prompt_count": len(prompts), "position_in_queue": position}  
+    redis_client.set(f"{JOB_TRACKER_PREFIX}{job_id}", json.dumps(job_tracker))  
+
+    wait_seconds = position * 10  
+    return Response({"status": "queued", "job_id": job_id,  
+                     "position_in_queue": position,  
+                     "estimated_wait_seconds": wait_seconds}, status=202)  
+
 
 @api_view(['POST'])
 def job_status(request):
-    job_id = request.data.get("job_id")
-    job_data = r.get(f"{JOB_TRACKER_PREFIX}{job_id}")
-    
-    if not job_data:
-        return Response({"error": "Job not found"}, status=404)
-    
-    job = json.loads(job_data)
-    response_data = {
-        "job_id": job_id,
-        "status": job["status"],
-        "created_at": job.get("created_at"),
-    }
+    job_id = request.data.get("job_id") 
+    job_data = redis_client.get(f"{JOB_TRACKER_PREFIX}{job_id}") 
+    if not job_data: 
+        return Response({"error": "Job not found"}, status=404) 
+    job = json.loads(job_data) 
+    response_data = {"job_id": job_id, "status": job["status"]} 
     
     if job["status"] == "queued":
         response_data["position_in_queue"] = job.get("position_in_queue", 0)
@@ -333,9 +316,9 @@ def health_check(request):
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
 
 
-def update_queue_positions():
+def update_queue_positions(conn):
     """Update queue positions for all queued jobs"""
-    queued_jobs = r.lrange(JOB_QUEUE_KEY, 0, -1)
+    queued_jobs = conn.lrange(JOB_QUEUE_KEY, 0, -1)
     
     for position, job_data in enumerate(queued_jobs, start=1):
         try:
@@ -343,12 +326,12 @@ def update_queue_positions():
             job_id = job["job_id"]
             tracker_key = f"{JOB_TRACKER_PREFIX}{job_id}"
             
-            job_tracker_data = r.get(tracker_key)
+            job_tracker_data = conn.get(tracker_key)
             if job_tracker_data:
                 job_tracker = json.loads(job_tracker_data)
                 if job_tracker.get("status") == "queued":
                     job_tracker["position_in_queue"] = position
-                    r.set(tracker_key, json.dumps(job_tracker))
+                    conn.set(tracker_key, json.dumps(job_tracker))
         except Exception as e:
             logger.error(f"Error updating queue position: {str(e)}")
             
@@ -373,17 +356,15 @@ def generate_prompts(request):
     )
 
     
-    prompt =prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
+    prompt = prompt_template.format(brand=brand, website=website, custom_comments=custom_comments or "")
 
     print(f"Generated Prompt: {prompt}")
 
     try:
         OPENAI_MODEL = os.getenv("OPENAI_MODEL", "openai/o4-mini")
         o_response = query_openai(prompt, OPENAI_MODEL)
-        # g_response_array = [p.strip() for p in g_response.split(';') if p.strip()]
         o_response_array = [p.strip() for p in o_response.split(';') if p.strip()]
         results = {
-            # "gemini": g_response_array,
             "openai": o_response_array
         }
 
@@ -391,4 +372,3 @@ def generate_prompts(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
- 
