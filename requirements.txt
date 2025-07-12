@@ -16,6 +16,8 @@ pandas==2.2.2
 django-cors-headers
 redis==4.5.4
 django-redis==6.0.0
+psycopg2-binary==2.9.10
+dj-database-url==3.0.1
 numpy==1.23.5 --prefer-binary
 blis==0.7.9 --prefer-binary
 cython>=0.29 --prefer-binary
