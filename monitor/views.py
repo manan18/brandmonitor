@@ -1,4 +1,3 @@
-import redis
 import json
 import os
 import logging
@@ -19,12 +18,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Import your other modules here
 from .llm_query import query_openrouter, query_openai
 from .utils import calculate_mention_rate
+from .local_rate_limiter import InMemoryRateLimiter
 
 from .models import Job
-from .db_rate_limiter import DBRateLimiter
 
 load_dotenv()
-
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -39,11 +37,6 @@ MODEL_IDS = {
     "claude": "anthropic/claude-3.5-haiku-20241022:beta"
 }
 
-# Redis keys
-JOB_QUEUE_KEY = "job_queue"
-JOB_TRACKER_PREFIX = "job_tracker:"
-WORKER_BUSY_KEY = "worker_busy"
-RATE_LIMITER_KEY = "rate_limiter"
 
 # Worker configuration here
 NUM_OUTER_WORKERS = int(os.getenv("NUM_OUTER_WORKERS", 15))  
@@ -57,11 +50,12 @@ def print_env_variables():
     print("➡️  DATABASE_URL:", os.getenv('DATABASE_URL', 'Not Set'))
             
 
-RATE_LIMITER = DBRateLimiter(
-    key="openrouter",
+
+RATE_LIMITER = InMemoryRateLimiter(
     rate_per_sec = float(os.getenv("RATE_LIMIT_MAX", 100)) / float(os.getenv("RATE_INTERVAL_S", 60)),
-    burst = int(os.getenv("RATE_LIMIT_MAX", 100))
+    burst        = int(os.getenv("RATE_LIMIT_MAX", 100)),
 )
+
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
     RATE_LIMITER.wait_for_slot()
@@ -173,18 +167,7 @@ def worker_thread():
                 job.completed_at = timezone.now()
                 job.save(update_fields=["status","error","completed_at"])
                   
-# Start worker threads
-# def start_workers():
-#     """Start multiple worker threads for parallel job processing"""
-#     # conn = redis.Redis(connection_pool=redis_pool)
-#     conn = redis_client  # Use the shared Redis client
-#     if not conn.get(WORKER_BUSY_KEY):
-#         for _ in range(NUM_OUTER_WORKERS):
-#             worker = threading.Thread(target=worker_thread, daemon=True)
-#             worker.start()
-#         logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")
 
-# Start worker threads (only in real server process)
 if os.environ.get("RUN_MAIN") == "true":
     for _ in range(NUM_OUTER_WORKERS):  
         threading.Thread(target=worker_thread, daemon=True).start()
@@ -294,26 +277,7 @@ def health_check(request):
     port = os.getenv("PORT", "8000")
     return Response({"status": "ok", "message": f"Server running on PORT {port}"}, status=200)
 
-
-def update_queue_positions(conn):
-    """Update queue positions for all queued jobs"""
-    queued_jobs = conn.lrange(JOB_QUEUE_KEY, 0, -1)
-    
-    for position, job_data in enumerate(queued_jobs, start=1):
-        try:
-            job = json.loads(job_data)
-            job_id = job["job_id"]
-            tracker_key = f"{JOB_TRACKER_PREFIX}{job_id}"
-            
-            job_tracker_data = conn.get(tracker_key)
-            if job_tracker_data:
-                job_tracker = json.loads(job_tracker_data)
-                if job_tracker.get("status") == "queued":
-                    job_tracker["position_in_queue"] = position
-                    conn.set(tracker_key, json.dumps(job_tracker))
-        except Exception as e:
-            logger.error(f"Error updating queue position: {str(e)}")
-            
+  
 @api_view(['POST'])
 def generate_prompts(request):
     brand = request.data.get('brand')
