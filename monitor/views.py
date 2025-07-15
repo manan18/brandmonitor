@@ -48,6 +48,7 @@ def print_env_variables():
     print("➡️  RATE_INTERVAL_S:", os.getenv('RATE_INTERVAL_S', 'Not Set'))
     print("➡️  RATE_LIMIT_MAX:", os.getenv('RATE_LIMIT_MAX', 'Not Set'))
     print("➡️  DATABASE_URL:", os.getenv('DATABASE_URL', 'Not Set'))
+    print("➡️  NUMBER_OF_PROMPTS:", os.getenv('NUMBER_OF_PROMPTS', 'Not Set'))
             
 
 
