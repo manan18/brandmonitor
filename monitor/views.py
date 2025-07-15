@@ -47,7 +47,6 @@ def print_env_variables():
     print("➡️  PROMPT_WORKERS:", os.getenv('PROMPT_WORKERS', 'Not Set'))
     print("➡️  RATE_INTERVAL_S:", os.getenv('RATE_INTERVAL_S', 'Not Set'))
     print("➡️  RATE_LIMIT_MAX:", os.getenv('RATE_LIMIT_MAX', 'Not Set'))
-    print("➡️  DATABASE_URL:", os.getenv('DATABASE_URL', 'Not Set'))
     print("➡️  NUMBER_OF_PROMPTS:", os.getenv('NUMBER_OF_PROMPTS', 'Not Set'))
             
 
@@ -169,10 +168,10 @@ def worker_thread():
                 job.save(update_fields=["status","error","completed_at"])
                   
 
-if os.environ.get("RUN_MAIN") == "true":
-    for _ in range(NUM_OUTER_WORKERS):  
-        threading.Thread(target=worker_thread, daemon=True).start()
-    logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")  
+# if os.environ.get("RUN_MAIN") == "true":
+#     for _ in range(NUM_OUTER_WORKERS):  
+#         threading.Thread(target=worker_thread, daemon=True).start()
+#     logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")  
 
 
 @api_view(['POST'])

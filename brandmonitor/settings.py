@@ -29,7 +29,8 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Your app
-    'monitor',
+    # 'monitor',
+    'monitor.apps.MonitorConfig'
 ]
 
 # --- MIDDLEWARE ---
