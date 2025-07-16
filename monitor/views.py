@@ -153,7 +153,7 @@ def worker_thread():
                 "brand":           job.brand,
                 "total_prompts":   total_prompts,
                 **{f"{m}_mention_rate": final[m]["mention_rate"] for m in MODEL_IDS},
-                "segregated":      final
+                "segregated_prompts":      final
             }
             job.status        = Job.STATUS_COMPLETED
             job.completed_at  = timezone.now()
