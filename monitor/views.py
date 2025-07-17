@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Import your other modules here
 from .llm_query import query_openrouter, query_openai
 from .utils import calculate_mention_rate
-from .local_rate_limiter import InMemoryRateLimiter
+from .local_rate_limiter import shared_limiter
 
 from .models import Job
 
@@ -50,15 +50,8 @@ def print_env_variables():
     print("➡️  NUMBER_OF_PROMPTS:", os.getenv('NUMBER_OF_PROMPTS', 'Not Set'))
             
 
-
-RATE_LIMITER = InMemoryRateLimiter(
-    rate_per_sec = float(os.getenv("RATE_LIMIT_MAX", 100)) / float(os.getenv("RATE_INTERVAL_S", 60)),
-    burst        = int(os.getenv("RATE_LIMIT_MAX", 100)),
-)
-
-
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
-    RATE_LIMITER.wait_for_slot()
+    shared_limiter.wait_for_slot()
     return query_openrouter(prompt, model_id)
 
 def process_prompt(prompt):

@@ -1,5 +1,6 @@
 import threading
 import time
+import os
 
 class InMemoryRateLimiter:
     def __init__(self, rate_per_sec, burst):
@@ -24,3 +25,10 @@ class InMemoryRateLimiter:
                 # else, fall through to sleep
 
             time.sleep(0.05)
+
+RATE_LIMIT_MAX = int(os.getenv("RATE_LIMIT_MAX", 800))         
+RATE_INTERVAL_S = float(os.getenv("RATE_INTERVAL_S", 60))
+
+RATE_PER_SEC = RATE_LIMIT_MAX / RATE_INTERVAL_S
+
+shared_limiter = InMemoryRateLimiter(rate_per_sec=RATE_PER_SEC, burst=RATE_LIMIT_MAX)
