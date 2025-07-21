@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from django.db import transaction
 from django.utils import timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from threading import Lock
 
 # Import your other modules here
 from .llm_query import query_openrouter, query_openai
@@ -27,6 +27,11 @@ load_dotenv()
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# This lock ensures that only one job is processed at a time
+# Global processing lock
+processing_lock = Lock()
+current_processing_job = None
 
 # Constants
 MODEL_IDS = {
@@ -71,64 +76,95 @@ def process_prompt(prompt):
 
 
 def worker_thread():
-    # give each outer worker its own prompt executor
+    global current_processing_job
+    
+    # Each worker gets its own prompt executor
     prompt_executor = ThreadPoolExecutor(max_workers=PROMPT_WORKERS)
 
     while True:
-        job = None
+        # Check if another job is already processing
+        if current_processing_job is not None:
+            time.sleep(5)  # Wait before checking again
+            continue
+            
+        # Acquire lock only for job selection/assignment
+        with processing_lock:
+            job = None
+            try:
+                # 1) Atomically grab one queued job
+                with transaction.atomic():
+                    job = (
+                        Job.objects
+                        .select_for_update(skip_locked=True)
+                        .filter(status=Job.STATUS_QUEUED)
+                        .order_by("created_at")
+                        .first()
+                    )
+                    if not job:
+                        continue
+
+                    # Set global processing job ID
+                    current_processing_job = job.job_id
+                    
+                    # Update job status
+                    job.status = Job.STATUS_PROCESSING
+                    job.started_at = timezone.now()
+                    job.progress = 0.0
+                    job.save(update_fields=["status", "started_at", "progress"])
+                    
+                    logger.info(f"Started processing job: {job.job_id}")
+            
+            except Exception as exc:
+                # Clear processing job on error
+                current_processing_job = None
+                if job:
+                    job.status = Job.STATUS_FAILED
+                    job.error = str(exc)
+                    job.completed_at = timezone.now()
+                    job.save(update_fields=["status", "error", "completed_at"])
+                continue
+
+        # Process job outside the lock (this takes minutes)
         try:
-            # 1) Atomically grab one queued job
-            with transaction.atomic():
-                job = (
-                    Job.objects
-                       .select_for_update(skip_locked=True)
-                       .filter(status=Job.STATUS_QUEUED)
-                       .order_by("created_at")
-                       .first()
-                )
-                if not job:
-                    continue
+            prompts = job.prompts
+            total_prompts = len(prompts)
+            completed = 0
+            lock = threading.Lock()
+            responses = {m: [] for m in MODEL_IDS}
 
-                job.status     = Job.STATUS_PROCESSING
-                job.started_at = timezone.now()
-                job.progress   = 0.0
-                job.save(update_fields=["status","started_at","progress"])
-
-            prompts        = job.prompts
-            total_prompts  = len(prompts)
-            completed      = 0
-            lock           = threading.Lock()
-            responses      = {m: [] for m in MODEL_IDS}
-
-            # 2) Submit all prompts into this worker’s prompt_executor
+            # 2) Submit all prompts for processing
             future_to_prompt = {
                 prompt_executor.submit(process_prompt, p): p
                 for p in prompts
             }
 
-            # 3) As each prompt finishes, record results and update progress
+            # 3) Process results as they complete
             for future in as_completed(future_to_prompt):
                 prompt_text = future_to_prompt[future]
                 try:
                     model_results = future.result()
                     for m, resp in model_results.items():
                         responses[m].append({
-                            "prompt":  prompt_text,
+                            "prompt": prompt_text,
                             "response": resp
                         })
                 except Exception as e:
                     err = str(e)
                     for m in MODEL_IDS:
                         responses[m].append({
-                            "prompt":  prompt_text,
+                            "prompt": prompt_text,
                             "response": f"Error: {err}"
                         })
 
+                # Update progress periodically
                 with lock:
                     completed += 1
                     pct = (completed / total_prompts) * 100.0
-                    job.progress = pct
-                    job.save(update_fields=["progress"])
+                    
+                    # Only update every 10% or on completion
+                    if completed == total_prompts or completed % max(1, total_prompts//10) == 0:
+                        job.progress = pct
+                        job.save(update_fields=["progress"])
 
             # 4) Compute final results
             final = {}
@@ -136,30 +172,35 @@ def worker_thread():
                 rate = calculate_mention_rate(responses[m], job.brand)
                 yes, no = segregate_prompts_by_mention(responses[m], job.brand)
                 final[m] = {
-                    "mention_rate":    rate,
-                    "mentioned":       yes[:3],
-                    "not_mentioned":   no[:3]
+                    "mention_rate": rate,
+                    "mentioned": yes[:3],
+                    "not_mentioned": no[:3]
                 }
 
             # 5) Mark job completed
-            job.result       = {
-                "brand":           job.brand,
-                "total_prompts":   total_prompts,
+            job.result = {
+                "brand": job.brand,
+                "total_prompts": total_prompts,
                 **{f"{m}_mention_rate": final[m]["mention_rate"] for m in MODEL_IDS},
-                "segregated_prompts":      final
+                "segregated_prompts": final
             }
-            job.status        = Job.STATUS_COMPLETED
-            job.completed_at  = timezone.now()
-            job.save(update_fields=["result","status","completed_at"])
+            job.status = Job.STATUS_COMPLETED
+            job.completed_at = timezone.now()
+            job.save(update_fields=["result", "status", "completed_at"])
+            
+            logger.info(f"Completed job: {job.job_id}")
 
         except Exception as exc:
-            # Mark job failed if we grabbed one
+            logger.error(f"Job processing failed: {str(exc)}")
             if job:
-                job.status       = Job.STATUS_FAILED
-                job.error        = str(exc)
+                job.status = Job.STATUS_FAILED
+                job.error = str(exc)
                 job.completed_at = timezone.now()
-                job.save(update_fields=["status","error","completed_at"])
-                  
+                job.save(update_fields=["status", "error", "completed_at"])
+        
+        finally:
+            # Clear processing flag regardless of success/failure
+            current_processing_job = None                
 
 # if os.environ.get("RUN_MAIN") == "true":
 #     for _ in range(NUM_OUTER_WORKERS):  
