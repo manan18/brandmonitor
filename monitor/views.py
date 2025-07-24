@@ -14,6 +14,8 @@ from django.db import transaction
 from django.utils import timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
+from redis import Redis
+from redis.exceptions import LockError
 
 # Import your other modules here
 from .llm_query import query_openrouter, query_openai
@@ -21,6 +23,8 @@ from .utils import calculate_mention_rate
 from .local_rate_limiter import shared_limiter
 
 from .models import Job
+
+from celery import shared_task  
 
 load_dotenv()
 
@@ -47,12 +51,33 @@ MODEL_IDS = {
 NUM_OUTER_WORKERS = int(os.getenv("NUM_OUTER_WORKERS", 15))  
 PROMPT_WORKERS = int(os.getenv("PROMPT_WORKERS", 5))  
 
+PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT', 'development').lower()
+IS_DEVELOPMENT = (PYTHON_ENVIRONMENT == 'development')
+
+
+if not IS_DEVELOPMENT:
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('http.client').setLevel(logging.WARNING)
+
+
+def log_conditionally(level, msg, *args, **kwargs):
+    """
+    Logs a message only if in development environment or if the log level
+    is WARNING, ERROR, or CRITICAL.
+    """
+    if IS_DEVELOPMENT or level >= logging.WARNING:
+        logger.log(level, msg, *args, **kwargs)
+
 def print_env_variables():
     print("➡️  NUM_OUTER_WORKERS:", os.getenv('NUM_OUTER_WORKERS', 'Not Set'))
     print("➡️  PROMPT_WORKERS:", os.getenv('PROMPT_WORKERS', 'Not Set'))
     print("➡️  RATE_INTERVAL_S:", os.getenv('RATE_INTERVAL_S', 'Not Set'))
     print("➡️  RATE_LIMIT_MAX:", os.getenv('RATE_LIMIT_MAX', 'Not Set'))
     print("➡️  NUMBER_OF_PROMPTS:", os.getenv('NUMBER_OF_PROMPTS', 'Not Set'))
+    print("➡️  IS_CELERY_WORKER_ON:", os.getenv('IS_CELERY_WORKER_ON', 'Not Set'))
+    
             
 
 def query_openrouter_limited(prompt: str, model_id: str) -> str:
@@ -74,138 +99,425 @@ def process_prompt(prompt):
         return {model: "" for model in MODEL_IDS}
 
 
-
-def worker_thread():
-    global current_processing_job
+# @shared_task(bind=True, max_retries=3)
+# def process_brand_mention(self, job_id: str):
+    """
+    Processes a single job with strict sequential execution
+    Only one job runs at a time - others wait in queue
+    Minimal Redis connections used
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"🚀 Starting processing for job: {job_id}")
     
-    # Each worker gets its own prompt executor
-    prompt_executor = ThreadPoolExecutor(max_workers=PROMPT_WORKERS)
+    # raise Exception("THIS TASK IS RUNNING SYNCHRONOUSLY! Traceback will show where.")
+    # >>> REMOVE THIS LINE AFTER TESTING <<<
 
-    while True:
-        # Check if another job is already processing
-        if current_processing_job is not None:
-            time.sleep(5)  # Wait before checking again
-            continue
-            
-        # Acquire lock only for job selection/assignment
-        with processing_lock:
-            job = None
-            try:
-                # 1) Atomically grab one queued job
-                with transaction.atomic():
-                    job = (
-                        Job.objects
-                        .select_for_update(skip_locked=True)
-                        .filter(status=Job.STATUS_QUEUED)
-                        .order_by("created_at")
-                        .first()
-                    )
-                    if not job:
-                        continue
+    
+    # Minimal Redis connection - created only when needed
+    redis_client = None
+    lock = None
+    job = None
+    
+    try:
 
-                    # Set global processing job ID
-                    current_processing_job = job.job_id
-                    
-                    # Update job status
-                    job.status = Job.STATUS_PROCESSING
-                    job.started_at = timezone.now()
-                    job.progress = 0.0
-                    job.save(update_fields=["status", "started_at", "progress"])
-                    
-                    logger.info(f"Started processing job: {job.job_id}")
-            
-            except Exception as exc:
-                # Clear processing job on error
-                current_processing_job = None
-                if job:
-                    job.status = Job.STATUS_FAILED
-                    job.error = str(exc)
-                    job.completed_at = timezone.now()
-                    job.save(update_fields=["status", "error", "completed_at"])
-                continue
-
-        # Process job outside the lock (this takes minutes)
         try:
-            prompts = job.prompts
-            total_prompts = len(prompts)
-            completed = 0
-            lock = threading.Lock()
-            responses = {m: [] for m in MODEL_IDS}
+            job = Job.objects.get(job_id=job_id)
+            logger.info(f"🔍 Found job: {job_id} with status: {job.status}")
+        except Job.DoesNotExist:
+            logger.error(f"❌ Job {job_id} does not exist in database")
+            return
 
-            # 2) Submit all prompts for processing
-            future_to_prompt = {
-                prompt_executor.submit(process_prompt, p): p
-                for p in prompts
-            }
+        # 2. Skip if not queued
+        if job.status != Job.STATUS_QUEUED:
+            logger.warning(f"⏩ Job {job_id} already processed (status: {job.status})")
+            return
 
-            # 3) Process results as they complete
-            for future in as_completed(future_to_prompt):
-                prompt_text = future_to_prompt[future]
-                try:
-                    model_results = future.result()
-                    for m, resp in model_results.items():
-                        responses[m].append({
-                            "prompt": prompt_text,
-                            "response": resp
-                        })
-                except Exception as e:
-                    err = str(e)
-                    for m in MODEL_IDS:
-                        responses[m].append({
-                            "prompt": prompt_text,
-                            "response": f"Error: {err}"
-                        })
 
-                # Update progress periodically
-                with lock:
-                    completed += 1
-                    pct = (completed / total_prompts) * 100.0
-                    
-                    # Only update every 10% or on completion
-                    if completed == total_prompts or completed % max(1, total_prompts//10) == 0:
-                        job.progress = pct
-                        job.save(update_fields=["progress"])
-
-            # 4) Compute final results
-            final = {}
-            for m in MODEL_IDS:
-                rate = calculate_mention_rate(responses[m], job.brand)
-                yes, no = segregate_prompts_by_mention(responses[m], job.brand)
-                final[m] = {
-                    "mention_rate": rate,
-                    "mentioned": yes[:3],
-                    "not_mentioned": no[:3]
-                }
-
-            # 5) Mark job completed
-            job.result = {
-                "brand": job.brand,
-                "total_prompts": total_prompts,
-                **{f"{m}_mention_rate": final[m]["mention_rate"] for m in MODEL_IDS},
-                "segregated_prompts": final
-            }
-            job.status = Job.STATUS_COMPLETED
-            job.completed_at = timezone.now()
-            job.save(update_fields=["result", "status", "completed_at"])
-            
-            logger.info(f"Completed job: {job.job_id}")
-
-        except Exception as exc:
-            logger.error(f"Job processing failed: {str(exc)}")
-            if job:
-                job.status = Job.STATUS_FAILED
-                job.error = str(exc)
-                job.completed_at = timezone.now()
-                job.save(update_fields=["status", "error", "completed_at"])
+        # 3. Create Redis connection (only when needed)
+        redis_url = os.getenv('REDIS_URL')
         
-        finally:
-            # Clear processing flag regardless of success/failure
-            current_processing_job = None                
+        if not redis_url:
+            logger.error("❌ Could not connect to Redis")
+            raise ValueError("❌ Could not connect to Redis. Please set the REDIS_URL environment variable.")
+        
 
-# if os.environ.get("RUN_MAIN") == "true":
-#     for _ in range(NUM_OUTER_WORKERS):  
-#         threading.Thread(target=worker_thread, daemon=True).start()
-#     logger.info(f"Started {NUM_OUTER_WORKERS} worker threads")  
+        redis_client = Redis.from_url(redis_url, max_connections=1)
+        
+        # 4. Acquire global lock (ensures only one job runs at a time)
+        lock = redis_client.lock("global_job_processing_lock", timeout=3600)
+        acquired = lock.acquire(blocking=True, blocking_timeout=30)
+        
+        if not acquired:
+            logger.warning(f"⏳ Could not acquire lock for job {job_id}")
+            # Retry after short delay without holding connection
+            raise self.retry(countdown=5)
+        
+        logger.info(f"🔒 Lock acquired for job {job_id}")
+        
+        # 5. Get and update job status
+        with transaction.atomic():
+            job = Job.objects.select_for_update().get(
+                job_id=job_id,
+                status=Job.STATUS_QUEUED
+            )
+            job.status = Job.STATUS_PROCESSING
+            job.started_at = timezone.now()
+            job.progress = 0.0
+            job.save()
+        
+        logger.info(f"🧵 Started processing job: {job.job_id}")
+        
+        # 6. Process prompts (original logic)
+        prompts = job.prompts or []
+        total = len(prompts)
+        responses = {model: [] for model in MODEL_IDS}
+        
+        for idx, prompt in enumerate(prompts, start=1):
+            
+            # Process all models for this prompt
+            model_outputs = process_prompt(prompt)
+            
+            for model, output in model_outputs.items():
+                responses[model].append({
+                    "prompt": prompt,
+                    "response": output
+                })
+            
+            # Update progress
+            job.progress = (idx / total) * 100.0
+            job.save(update_fields=["progress"])
+        
+        # 6. Final calculations
+        final = {}
+        for model, reps in responses.items():
+            rate = calculate_mention_rate(reps, job.brand)
+            yes, no = segregate_prompts_by_mention(reps, job.brand)
+            final[model] = {
+                "mention_rate": rate,
+                "mentioned": yes[:3],
+                "not_mentioned": no[:3],
+            }
+        
+        # 7. Save results
+        job.result = {
+            "brand": job.brand,
+            "total_prompts": total,
+            **{f"{m}_mention_rate": final[m]["mention_rate"] for m in MODEL_IDS},
+            "segregated_prompts": final,
+        }
+        job.status = Job.STATUS_COMPLETED
+        job.completed_at = timezone.now()
+        job.save()
+        logger.info(f"✅ Completed job: {job.job_id}")
+        logger.info(f"Sleeping for 120 seconds..")
+        print(f"✅ Job {job_id} completed and sleeping for 120 seconds")
+        logger.warning(f"Sleeping for 120 seconds..")
+        time.sleep(10)
+        
+    except Job.DoesNotExist:
+        logger.warning(f"⏩ Job {job_id} already processed or doesn't exist")
+    except Exception as e:
+        logger.exception(f"❌ Job processing failed: {str(e)}")
+        if job:
+            job.status = Job.STATUS_FAILED
+            job.error = str(e)
+            job.completed_at = timezone.now()
+            job.save()
+        # Retry after delay
+        raise self.retry(exc=e, countdown=60)
+    finally:
+        # 7. Always release resources
+        try:
+            if lock and lock.locked():
+                lock.release()
+                logger.info(f"🔓 Lock released for job {job_id}")
+        except LockError:
+            pass
+            
+        if redis_client:
+            try:
+                redis_client.close()
+            except Exception:
+                pass
+
+# @shared_task(bind=True, max_retries=3)
+# def process_brand_mention(self, job_id: str):
+#     """
+#     Processes a single job by running its prompts in parallel using a ThreadPoolExecutor.
+#     """
+#     logger.info(f"🚀 Starting processing for job: {job_id}")
+
+#     redis_client = None
+#     lock = None
+#     job = None
+
+#     try:
+#         try:
+#             job = Job.objects.get(job_id=job_id)
+#             logger.info(f"🔍 Found job: {job_id} with status: {job.status}")
+#         except Job.DoesNotExist:
+#             logger.error(f"❌ Job {job_id} does not exist in database")
+#             return
+
+#         if job.status != Job.STATUS_QUEUED:
+#             logger.warning(f"⏩ Job {job_id} already processed (status: {job.status})")
+#             return
+
+#         redis_url = os.getenv('REDIS_URL')
+#         if not redis_url:
+#             logger.error("❌ REDIS_URL environment variable not set.")
+#             raise ValueError("❌ Could not connect to Redis. Please set the REDIS_URL environment variable.")
+
+#         redis_client = Redis.from_url(redis_url, max_connections=1)
+
+#         lock = redis_client.lock("global_job_processing_lock", timeout=3600)
+#         acquired = lock.acquire(blocking=True, blocking_timeout=30)
+
+#         if not acquired:
+#             logger.warning(f"⏳ Could not acquire lock for job {job_id}")
+#             raise self.retry(countdown=5)
+
+#         logger.info(f"🔒 Lock acquired for job {job_id}")
+
+#         with transaction.atomic():
+#             job = Job.objects.select_for_update().get(
+#                 job_id=job_id,
+#                 status=Job.STATUS_QUEUED
+#             )
+#             job.status = Job.STATUS_PROCESSING
+#             job.started_at = timezone.now()
+#             job.progress = 0.0
+#             job.save()
+
+#         logger.info(f"🧵 Started processing job: {job.job_id}")
+
+#         prompts = job.prompts or []
+#         total_prompts = len(prompts)
+        
+#         prompt_workers_count = int(os.getenv('PROMPT_WORKERS', '5'))
+#         if prompt_workers_count < 10:
+#             print(f"❗ Invalid PROMPT_WORKERS value : {prompt_workers_count}, defaulting to 10 worker.")
+#             prompt_workers_count = 10
+        
+#         logger.info(f"🚀 Processing {total_prompts} prompts with {prompt_workers_count} parallel workers.")
+
+#         responses = {model: [] for model in MODEL_IDS}
+#         processed_count = 0
+
+#         with ThreadPoolExecutor(max_workers=prompt_workers_count) as executor:
+            
+#             future_to_prompt = {executor.submit(process_prompt, prompt): prompt for prompt in prompts}
+            
+#             for future in as_completed(future_to_prompt):
+#                 original_prompt = future_to_prompt[future]
+#                 try:
+#                     model_outputs = future.result() 
+                    
+#                     for model, output in model_outputs.items():
+#                         responses[model].append({
+#                             "prompt": original_prompt,
+#                             "response": output
+#                         })
+                    
+#                     processed_count += 1
+                    
+#                     with transaction.atomic():
+#                         job.progress = (processed_count / total_prompts) * 100.0
+#                         job.save(update_fields=["progress"])
+#                     logger.info(f"Progress for job {job_id}: {job.progress:.2f}%")
+
+#                 except Exception as exc:
+#                     logger.error(f"❌ Prompt '{original_prompt}' generated an exception: {exc}")
+#                     # - Continue processing other prompts, log the error for this one.
+
+#         # Final calculations after all prompts are processed
+#         final = {}
+#         for model, reps in responses.items():
+#             rate = calculate_mention_rate(reps, job.brand)
+#             yes, no = segregate_prompts_by_mention(reps, job.brand)
+#             final[model] = {
+#                 "mention_rate": rate,
+#                 "mentioned": yes[:3],
+#                 "not_mentioned": no[:3],
+#             }
+
+#         # Save results
+#         job.result = {
+#             "brand": job.brand,
+#             "total_prompts": total_prompts,
+#             **{f"{m}_mention_rate": final[m]["mention_rate"] for m in MODEL_IDS},
+#             "segregated_prompts": final,
+#         }
+#         job.status = Job.STATUS_COMPLETED
+#         job.completed_at = timezone.now()
+#         job.save()
+#         logger.info(f"✅ Completed job: {job.job_id}")
+#         logger.info(f"Sleeping for 10 seconds..") # Changed from 120
+#         print(f"✅ Job {job_id} completed and sleeping for 10 seconds")
+#         logger.warning(f"Sleeping for 10 seconds..") # Changed from 120
+#         time.sleep(10) # Changed from 120
+
+#     except Job.DoesNotExist:
+#         logger.warning(f"⏩ Job {job_id} already processed or doesn't exist")
+#     except Exception as e:
+#         logger.exception(f"❌ Job processing failed: {str(e)}")
+#         if job:
+#             job.status = Job.STATUS_FAILED
+#             job.error = str(e)
+#             job.completed_at = timezone.now()
+#             job.save()
+#         raise self.retry(exc=e, countdown=60)
+#     finally:
+#         try:
+#             if lock and lock.locked():
+#                 lock.release()
+#                 logger.info(f"🔓 Lock released for job {job_id}")
+#         except LockError:
+#             pass # Lock might have expired or released by another process (shouldn't happen with global lock)
+
+#         if redis_client:
+#             try:
+#                 redis_client.close()
+#             except Exception:
+#                 pass
+
+@shared_task(bind=True, max_retries=3)
+def process_brand_mention(self, job_id: str):
+    """
+    Processes a single job by running its prompts in parallel using a ThreadPoolExecutor.
+    """
+    log_conditionally(logging.INFO, f"🚀 Starting processing for job: {job_id}")
+
+    redis_client = None
+    lock = None
+    job = None
+
+    try:
+        try:
+            job = Job.objects.get(job_id=job_id)
+            log_conditionally(logging.INFO, f"🔍 Found job: {job_id} with status: {job.status}")
+        except Job.DoesNotExist:
+            log_conditionally(logging.ERROR, f"❌ Job {job_id} does not exist in database")
+            return
+
+        if job.status != Job.STATUS_QUEUED:
+            log_conditionally(logging.WARNING, f"⏩ Job {job_id} already processed (status: {job.status})")
+            return
+
+        redis_url = os.getenv('REDIS_URL')
+        if not redis_url:
+            logger.error("❌ REDIS_URL environment variable not set.")
+            raise ValueError("❌ Could not connect to Redis. Please set the REDIS_URL environment variable.")
+
+        redis_client = Redis.from_url(redis_url, max_connections=1)
+
+        lock = redis_client.lock("global_job_processing_lock", timeout=3600)
+        acquired = lock.acquire(blocking=True, blocking_timeout=30)
+
+        if not acquired:
+            logger.warning(f"⏳ Could not acquire lock for job {job_id}")
+            raise self.retry(countdown=5)
+
+        log_conditionally(logging.INFO, f"🔒 Lock acquired for job {job_id}")
+
+        with transaction.atomic():
+            job = Job.objects.select_for_update().get(
+                job_id=job_id,
+                status=Job.STATUS_QUEUED
+            )
+            job.status = Job.STATUS_PROCESSING
+            job.started_at = timezone.now()
+            job.progress = 0.0
+            job.save()
+
+        logger.info(f"🧵 Started processing job: {job.job_id}")
+
+        prompts = job.prompts or []
+        total_prompts = len(prompts)
+        
+        prompt_workers_count = int(os.getenv('PROMPT_WORKERS', '10'))
+        
+        log_conditionally(logging.INFO, f"🚀 Processing {total_prompts} prompts with {prompt_workers_count} parallel workers.")
+
+        responses = {model: [] for model in MODEL_IDS}
+        processed_count = 0
+
+        with ThreadPoolExecutor(max_workers=prompt_workers_count) as executor:
+            future_to_prompt = {executor.submit(process_prompt, prompt): prompt for prompt in prompts}
+            
+            for future in as_completed(future_to_prompt):
+                original_prompt = future_to_prompt[future]
+                try:
+                    model_outputs = future.result() 
+                    
+                    for model, output in model_outputs.items():
+                        responses[model].append({
+                            "prompt": original_prompt,
+                            "response": output
+                        })
+                    
+                    processed_count += 1
+                    
+                    with transaction.atomic():
+                        job.progress = (processed_count / total_prompts) * 100.0
+                        job.save(update_fields=["progress"])
+                    log_conditionally(logging.INFO, f"Progress for job {job_id}: {job.progress:.2f}%")
+
+                except Exception as exc:
+                    log_conditionally(logging.ERROR, f"❌ Prompt '{original_prompt}' generated an exception: {exc}")
+                    # Continue processing other prompts
+
+        # Final calculations after all prompts are processed
+        final = {}
+        for model, reps in responses.items():
+            rate = calculate_mention_rate(reps, job.brand)
+            yes, no = segregate_prompts_by_mention(reps, job.brand)
+            final[model] = {
+                "mention_rate": rate,
+                "mentioned": yes[:3],
+                "not_mentioned": no[:3],
+            }
+
+        job.result = {
+            "brand": job.brand,
+            "total_prompts": total_prompts,
+            **{f"{m}_mention_rate": final[m]["mention_rate"] for m in MODEL_IDS},
+            "segregated_prompts": final,
+        }
+        job.status = Job.STATUS_COMPLETED
+        job.completed_at = timezone.now()
+        job.save()
+
+        logger.info(f"✅ Completed job: {job.job_id}")
+        
+
+    except Job.DoesNotExist:
+        log_conditionally(logging.WARNING, f"⏩ Job {job_id} already processed or doesn't exist")
+    except Exception as e:
+        logger.exception(f"❌ Job processing failed: {str(e)}")
+        if job:
+            job.status = Job.STATUS_FAILED
+            job.error = str(e)
+            job.completed_at = timezone.now()
+            job.save()
+        raise self.retry(exc=e, countdown=60)
+    finally:
+        try:
+            if lock and lock.locked():
+                lock.release()
+                log_conditionally(logging.INFO, f"🔓 Lock released for job {job_id}")
+        except LockError:
+            pass
+
+        if redis_client:
+            try:
+                redis_client.close()
+            except Exception:
+                pass
+
+
+
+
 
 
 @api_view(['POST'])
@@ -217,17 +529,24 @@ def brand_mention_score(request):
     if not brand or not prompts:
         return Response({"error": "brand and prompts are required"}, status=400)
 
-    # Enqueue into Postgres
     job = Job.objects.create(
         brand=brand,
-        prompts=prompts
+        prompts=prompts,
+        status=Job.STATUS_QUEUED  
     )
+    job.save()
+    
+    print(f"➡️  Created job: {job.job_id} with status: {Job.STATUS_QUEUED}")
+    
+    # Enqueue in Celery
+    process_brand_mention.delay(str(job.job_id))
 
-    # Position in queue = number still waiting (including this one)
-    position = Job.objects.filter(status=Job.STATUS_QUEUED).count()
+    position = Job.objects.filter(
+        status=Job.STATUS_QUEUED,
+        created_at__lte=job.created_at
+    ).count()
 
-    # Estimate wait (e.g. 10s per position)
-    wait_seconds = position * 10
+    wait_seconds = position * 200  # Assuming each job takes ~200 seconds to process
 
     return Response({
         "status": "queued",
@@ -349,3 +668,20 @@ def generate_prompts(request):
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    
+def check_background_workers():
+    """Temporary function to verify no background workers are running"""
+    for thread in threading.enumerate():
+        if "worker" in thread.name.lower():
+            logger.warning(f"⚠️ Background worker still active: {thread.name}")
+            return True
+    return False
+
+@api_view(['GET'])
+def worker_check(request):
+    has_workers = check_background_workers()
+    return Response({
+        "has_background_workers": has_workers,
+        "active_threads": [t.name for t in threading.enumerate()]
+    })

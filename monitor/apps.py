@@ -1,22 +1,17 @@
 # monitor/apps.py
+import os
 from django.apps import AppConfig
-import threading
 
 class MonitorConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'monitor'
 
     def ready(self):
-        # Delay import until apps are loaded
-        from .worker import start_workers
-
-        # Start background threads in a daemon so they don’t block shutdown
-        threading.Thread(target=start_workers, daemon=True).start()
-
-
-# from django.apps import AppConfig
-
-
-# class MonitorConfig(AppConfig):
-#     default_auto_field = 'django.db.models.BigAutoField'
-#     name = 'monitor'
+        # Only run in main Django process (not in Celery workers)
+        # IS_CELERY_WORKER_ON = os.getenv('IS_CELERY_WORKER_ON', 'false').lower() == 'true'
+            
+        # print("👷🏻  IS_CELERY_WORKER_ON:", IS_CELERY_WORKER_ON)
+            
+        # if not IS_CELERY_WORKER_ON :
+        
+        print(f"✅ Django server started (PID: {os.getpid()})")

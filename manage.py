@@ -13,11 +13,11 @@ def main():
     django.setup()
 
     # Now it's safe to import Django-related modules
-    from monitor.views import print_env_variables
+    # from monitor.views import print_env_variables
 
     PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT', 'development')
-    if PYTHON_ENVIRONMENT == 'development':
-        print_env_variables()
+    # if PYTHON_ENVIRONMENT == 'development':
+    #     print_env_variables()
 
     try:
         from django.core.management import execute_from_command_line

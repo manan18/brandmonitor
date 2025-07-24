@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from decouple import config  # for loading environment variables
 
+
 # --- BASE SETTINGS ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,7 +31,9 @@ INSTALLED_APPS = [
 
     # Your app
     # 'monitor',
-    'monitor.apps.MonitorConfig'
+    'monitor.apps.MonitorConfig',
+    'django_celery_results'
+    
 ]
 
 # --- MIDDLEWARE ---
@@ -103,7 +106,11 @@ REST_FRAMEWORK = {
 # --- CORS ---
 CORS_ALLOW_ALL_ORIGINS = True  # Allow frontend requests (e.g. React, Streamlit)
 
-# --- API Keys (from .env) ---
-OPENAI_API_KEY = config("OPENAI_API_KEY", default=None)
-GEMINI_API_KEY = config("GEMINI_API_KEY", default=None)
-OPENAI_MODEL = config("OPENAI_MODEL", default="gpt-4o")
+
+CELERY_BROKER_URL = config('REDIS_URL')
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_WORKER_CONCURRENCY = 1  # Critical: Only 1 worker process!
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 10  # Recycle workers periodically
+
+if not CELERY_BROKER_URL:
+    raise ValueError("❌ REDIS_URL environment variable is not set. Please set it to your Redis instance URL.")
