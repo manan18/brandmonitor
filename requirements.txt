@@ -16,6 +16,8 @@ pandas==2.2.2
 django-cors-headers
 celery==5.3.6
 redis==5.0.1
+requests==2.32.4
+django-celery-results==2.6.0
 django-redis==6.0.0
 psycopg2-binary==2.9.10
 dj-database-url==3.0.1
