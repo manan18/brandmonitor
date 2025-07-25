@@ -30,6 +30,8 @@ class InMemoryRateLimiter:
 RATE_LIMIT_MAX = int(config("RATE_LIMIT_MAX", default=400))
 RATE_INTERVAL_S = float(config("RATE_INTERVAL_S", default=60))
 
+print(f"➡️  Rate limit max: {RATE_LIMIT_MAX}, Interval: {RATE_INTERVAL_S} seconds")
+
 RATE_PER_SEC = RATE_LIMIT_MAX / RATE_INTERVAL_S
 
 shared_limiter = InMemoryRateLimiter(rate_per_sec=RATE_PER_SEC, burst=RATE_LIMIT_MAX)
